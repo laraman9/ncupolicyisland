@@ -1,0 +1,2593 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>示範市政策島</title>
+<meta name="description" content="由六角形小島拼成的 3D 互動政策校園（場景參考中大校園，政策內容為虛構示範）">
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+<style>
+:root{
+  --coral:#db6a41;--ink:#211d1d;--cream:#fff8f4;--yellow:#fcea8b;--stone:#c5b5a7;--green:#71806a;--pink:#e3a8ab;
+  --muted:#6b5d55;
+  --font:"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --shadow:0 1px 2px #4a2a1410,0 6px 16px #4a2a1414,0 18px 40px #4a2a141a;
+  --shadow-card:0 1px 2px #4a2a1412,0 8px 24px #4a2a141c,0 30px 64px #4a2a1426;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;background:radial-gradient(circle at 50% 38%,#fffdf9 0%,#edddcf 100%);font-family:var(--font);color:var(--ink);-webkit-font-smoothing:antialiased}
+#stage{position:fixed;inset:0;overflow:hidden}
+#stage canvas{display:block;width:100%;height:100%;touch-action:none;outline:none}
+#labels{position:absolute;inset:0;pointer-events:none}
+button{font-family:var(--font)}
+
+/* ---------- glass + buttons ---------- */
+.glass{background:rgba(255,248,244,.8);-webkit-backdrop-filter:blur(16px) saturate(1.25);backdrop-filter:blur(16px) saturate(1.25);border:1px solid rgba(255,255,255,.75);box-shadow:var(--shadow)}
+.btn{min-height:44px;min-width:44px;border-radius:9px;border:1px solid #211d1d14;background:var(--cream);color:var(--ink);font:600 13px var(--font);padding:0 12px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;box-shadow:0 2px 8px #4a2a1414;transition:background .15s,color .15s,transform .1s;-webkit-tap-highlight-color:transparent}
+.btn:hover{background:var(--yellow)}
+.btn:active{transform:translateY(1px)}
+.btn[aria-pressed="true"],.btn[aria-selected="true"]{background:var(--ink);color:var(--cream)}
+.btn:focus-visible,.chip:focus-visible,.item-btn:focus-visible,summary:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid var(--coral);outline-offset:2px}
+.btn.primary{background:var(--coral);color:#fff;border-color:transparent;padding:0 22px}
+.btn.primary:hover{background:#c95b33}
+.chip{display:inline-flex;align-items:center;gap:6px;border-radius:999px;background:#fff;padding:6px 12px;min-height:32px;box-shadow:0 2px 8px #4a2a1414;border:0;font:600 12px var(--font);color:var(--ink);cursor:pointer}
+.chip:hover{background:var(--yellow)}
+.chip.cream{background:var(--cream)}
+.eyebrow{font:700 10px var(--mono);letter-spacing:2px;color:var(--coral);text-transform:uppercase}
+.bignum{font-family:Georgia,"Times New Roman",serif;font-style:italic;font-weight:400}
+.muted{color:var(--muted)}
+
+/* ---------- loading ---------- */
+#loading{position:fixed;inset:0;z-index:100;display:grid;place-items:center;background:radial-gradient(circle at 50% 40%,#fffdf9,#edddcf);transition:opacity .6s}
+#loading.done{opacity:0;pointer-events:none}
+.ld-inner{text-align:center;padding:24px;max-width:560px}
+#loading h1{font-size:clamp(40px,8vw,76px);margin:10px 0 6px;letter-spacing:4px;line-height:1.1}
+#loading h1 small{display:block;font-size:.42em;color:var(--coral);letter-spacing:8px;margin-top:6px}
+#ldMsg{font-size:17px;margin:14px 0 18px;color:var(--muted)}
+.ld-bar{width:220px;height:6px;border-radius:3px;background:#211d1d14;margin:0 auto;overflow:hidden}
+.ld-bar i{display:block;height:100%;width:4%;background:var(--coral);border-radius:3px;transition:width .3s}
+#ldStep{font:600 11px var(--mono);letter-spacing:1px;color:var(--muted);margin-top:12px;min-height:1em}
+#ldErr{white-space:pre-wrap;text-align:left;background:#fff;border-radius:12px;padding:14px;color:#a3381a;font:12px/1.5 var(--mono);box-shadow:var(--shadow);max-height:40vh;overflow:auto}
+
+/* ---------- brand + tools ---------- */
+#brand{position:fixed;top:16px;left:16px;width:340px;border-radius:18px;padding:13px 18px 12px;z-index:20}
+#brand h1{margin:3px 0 0;font-size:27px;letter-spacing:2px;line-height:1.15}
+#brand h1 small{font-size:16px;color:var(--coral);margin-left:8px;letter-spacing:3px}
+#brand p{margin:5px 0 0;font-size:11.5px;color:var(--muted);line-height:1.5}
+#brand a{color:var(--coral);font-weight:700;text-decoration:none;border-bottom:1px solid currentColor}
+#tools{position:fixed;top:122px;left:16px;display:flex;gap:8px;z-index:20}
+.tool{flex-direction:row}
+.tool .ic{font-size:15px;line-height:1}
+
+/* ---------- detail card ---------- */
+#card{position:fixed;left:16px;top:180px;bottom:100px;width:340px;border-radius:22px;overflow:auto;padding:18px 18px 22px;z-index:19;box-shadow:var(--shadow-card);transition:transform .38s cubic-bezier(.2,.8,.2,1),opacity .3s;overscroll-behavior:contain}
+#card.closed{transform:translateX(-118%);opacity:0;pointer-events:none}
+#cardClose{position:sticky;top:0;float:right;margin:-6px -6px 0 8px;z-index:2;font-size:15px}
+#cardBody h2{margin:6px 0 4px;font-size:23px;line-height:1.25;display:flex;align-items:center;gap:8px}
+#cardBody h2 .ic{font-size:26px}
+#cardBody h3{margin:18px 0 8px}
+#cardBody p.sum{font-size:14px;line-height:1.65;margin:8px 0}
+.loc{font-size:12.5px;color:var(--muted);margin-top:2px}
+.loc b{color:var(--ink)}
+.ilist{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:2px}
+.item-btn{display:flex;width:100%;text-align:left;align-items:center;background:none;border:0;padding:8px 10px;min-height:44px;border-radius:9px;font:500 13.5px var(--font);color:var(--ink);cursor:pointer;gap:8px}
+.item-btn:hover{background:var(--yellow)}
+.item-btn .cn{color:var(--coral);font-weight:700;font-size:15px;width:18px;flex:none}
+.item-btn .nm{flex:1}
+.item-btn .ph{font:700 10px var(--mono);color:var(--muted);background:#211d1d0d;border-radius:999px;padding:3px 7px;flex:none}
+.item-btn.lit .nm::after{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;background:#f2c94c;margin-left:6px;box-shadow:0 0 0 3px #fcea8b88;vertical-align:1px}
+.item-btn.active{background:#db6a4118}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.thumbwrap{margin:10px 0 6px;display:flex;gap:12px;align-items:center}
+.thumbwrap canvas{width:160px;height:160px;border-radius:16px;background:#f4ebe1;box-shadow:inset 0 0 0 1px #211d1d10;flex:none}
+.thumbwrap .side{font-size:12px;color:var(--muted);line-height:1.6}
+.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0 4px}
+.tile{background:#fff;border-radius:14px;padding:10px 8px 9px;box-shadow:0 2px 8px #4a2a1410;min-width:0}
+.tile .bignum{font-size:22px;line-height:1;color:var(--coral);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tile .bignum small{font-size:12px;font-style:normal;font-family:var(--font);color:var(--ink);margin-left:2px;font-weight:700}
+.tile .tl{font-size:10.5px;color:var(--muted);margin-top:6px;line-height:1.4}
+.facts{margin:8px 0 0;padding-left:18px;font-size:13px;line-height:1.7}
+.timeline{display:flex;align-items:flex-start;margin-top:6px;position:relative}
+.timeline::before{content:"";position:absolute;left:16%;right:16%;top:9px;height:2px;background:#211d1d1c}
+.step{flex:1;text-align:center;font-size:11.5px;color:var(--muted);position:relative}
+.step i{display:block;width:18px;height:18px;border-radius:50%;margin:0 auto 6px;background:#fff;border:2px solid #211d1d2a}
+.step.past i{background:var(--stone);border-color:var(--stone)}
+.step.on i{background:var(--coral);border-color:var(--coral);box-shadow:0 0 0 5px #db6a4126}
+.step.on{color:var(--ink);font-weight:700}
+.kv{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 0;border-bottom:1px dashed #211d1d1a;font-size:13px}
+.kv span{color:var(--muted)}
+.kv b{display:flex;align-items:center;gap:8px;text-align:right}
+.kv img{width:28px;height:28px}
+.note{background:#fcea8b66;border-radius:12px;padding:10px 12px;font-size:13px;margin-top:12px}
+.flowhead{display:flex;align-items:center;gap:10px;margin:8px 0}
+.flowhead .isl{flex:1;display:block;text-align:left;background:#fff;border-radius:12px;padding:8px 10px;font-weight:700;font-size:14px;box-shadow:0 2px 8px #4a2a1410}
+.flowhead .isl small{display:block;font-weight:400;color:var(--muted);font-size:11px}
+.flowhead .arrow{color:var(--coral);font-size:22px}
+
+/* ---------- sidebar ---------- */
+#sidebar{position:fixed;right:16px;top:16px;bottom:100px;width:318px;border-radius:22px;display:flex;flex-direction:column;z-index:18;overflow:hidden;transition:transform .38s cubic-bezier(.2,.8,.2,1),opacity .3s}
+#sidebar.closed{transform:translateX(118%);opacity:0;pointer-events:none}
+.sb-head{padding:14px 14px 8px}
+#search{width:100%;min-height:44px;border-radius:9px;border:1px solid #211d1d1f;background:#fff;padding:0 12px;font:500 14px var(--font);color:var(--ink)}
+.tabs{display:flex;gap:6px;margin-top:8px}
+.tabs .btn{flex:1;font-size:13px}
+#list{flex:1;overflow:auto;padding:2px 10px 14px;overscroll-behavior:contain}
+details.topic{background:#ffffffa8;border-radius:14px;margin:6px 0;box-shadow:0 1px 3px #4a2a140d}
+details.topic summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:10px;padding:8px 12px;min-height:48px;font-weight:700;font-size:14px;border-radius:14px}
+details.topic summary:hover{background:#fcea8b80}
+details.topic summary::-webkit-details-marker{display:none}
+details.topic summary .no{width:26px;height:26px;border-radius:50%;background:var(--coral);color:#fff;display:grid;place-items:center;font:700 11px var(--mono);flex:none}
+details.topic summary small{font-weight:400;color:var(--muted);font-size:12px}
+details.topic summary .cnt{margin-left:auto;font:700 10px var(--mono);color:var(--muted)}
+details.topic.active summary{background:var(--ink);color:var(--cream)}
+details.topic.active summary small,details.topic.active summary .cnt{color:#fff8f4bb}
+details.topic ol{list-style:none;margin:0;padding:2px 6px 8px}
+.flow-row{display:flex;width:100%;align-items:center;gap:10px;text-align:left;border:0;background:#ffffffa8;border-radius:14px;padding:10px 12px;margin:6px 0;min-height:52px;cursor:pointer;font:500 13px var(--font);color:var(--ink);box-shadow:0 1px 3px #4a2a140d}
+.flow-row:hover{background:var(--yellow)}
+.flow-row.active{background:var(--ink);color:var(--cream)}
+.flow-row img{width:30px;height:30px;flex:none}
+.flow-row .ft{flex:1;line-height:1.35}
+.flow-row .ft small{display:block;opacity:.7;font-size:11px}
+.empty{padding:20px;text-align:center;color:var(--muted);font-size:13px}
+
+/* ---------- log ---------- */
+#log{position:fixed;top:16px;right:350px;width:290px;max-height:44vh;border-radius:18px;z-index:17;display:flex;flex-direction:column;overflow:hidden;transition:right .38s,opacity .3s,transform .3s}
+#log.closed{opacity:0;transform:translateY(-12px);pointer-events:none}
+#log.wide{right:16px}
+.log-head{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid #211d1d12}
+.log-head b{font-size:14px}
+.live{display:inline-flex;align-items:center;gap:5px;font:700 10px var(--mono);letter-spacing:1px;color:#2f8a4a;background:#e3f4e6;border-radius:999px;padding:3px 8px}
+.live i{width:7px;height:7px;border-radius:50%;background:#33b35a;animation:pulse 1.4s infinite}
+@keyframes pulse{50%{opacity:.25}}
+#logFilter{margin-left:auto;min-height:32px;border-radius:8px;border:1px solid #211d1d1f;background:#fff;font:500 12px var(--font);max-width:120px;color:var(--ink)}
+#logList{list-style:none;margin:0;padding:6px 10px 10px;overflow:auto;font-size:12.5px}
+#logList li{padding:6px 2px;border-bottom:1px dashed #211d1d14;line-height:1.5;display:flex;gap:8px}
+#logList time{font:700 11px var(--mono);color:var(--coral);flex:none;padding-top:2px}
+#logList .ev{font:700 9px var(--mono);letter-spacing:1px;border-radius:4px;padding:2px 4px;flex:none;height:fit-content;margin-top:2px}
+.ev.depart{background:#e7eefb;color:#3a5ea8}.ev.arrive{background:#e3f4e6;color:#2f8a4a}.ev.handoff{background:#fcea8b;color:#6b5a10}
+
+/* ---------- HUD ---------- */
+#hud{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);border-radius:999px;padding:6px 10px;display:flex;align-items:center;gap:4px;z-index:21;max-width:calc(100vw - 32px)}
+#clockBox{display:flex;flex-direction:column;align-items:center;padding:0 10px 0 8px;min-width:86px}
+#clock{font:italic 22px Georgia,serif;line-height:1}
+#seg{font-size:11px;color:var(--muted);white-space:nowrap;margin-top:3px}
+.sep{width:1px;height:32px;background:#211d1d22;margin:0 4px;flex:none}
+.hud-btn{flex-direction:column;gap:2px;padding:4px 6px;min-width:54px;font-size:11px;box-shadow:none;border-color:transparent;background:transparent}
+.hud-btn .ic{font-size:16px;line-height:1.1}
+.hud-btn.now{box-shadow:inset 0 -3px 0 var(--coral)}
+#timeBtn{display:none;position:fixed;left:16px;bottom:16px;z-index:22;border-radius:999px;padding:0 16px}
+#legend{position:fixed;left:50%;bottom:86px;transform:translateX(-50%);z-index:21;display:flex;gap:14px;border-radius:999px;padding:6px 14px;font-size:12px;font-weight:600;align-items:center}
+#legend[hidden]{display:none}
+#legend span{display:inline-flex;align-items:center;gap:6px}
+
+/* ---------- compass ---------- */
+#compass{position:fixed;left:20px;bottom:20px;z-index:16;width:64px;height:64px;filter:drop-shadow(0 3px 6px #4a2a1422);pointer-events:none}
+
+/* ---------- labels in 3D ---------- */
+.isl-label{pointer-events:auto;display:flex;align-items:center;gap:6px;padding:3px 11px 3px 3px;border-radius:999px;background:#fff8f4f0;box-shadow:0 2px 8px #4a2a1426;font:700 12.5px var(--font);color:var(--ink);white-space:nowrap;cursor:pointer;transition:opacity .25s,background .2s,color .2s;user-select:none}
+.isl-label .no{width:24px;height:24px;border-radius:50%;background:var(--coral);color:#fff;display:grid;place-items:center;font:700 11px var(--mono);flex:none}
+.isl-label:hover{background:var(--yellow)}
+.isl-label.sel{background:var(--ink);color:var(--cream)}
+.isl-label.dim{opacity:.42}
+.isl-label.compact{padding:3px}
+.isl-label.compact .t{display:none}
+.lbl-hide{visibility:hidden!important}
+.water-label{font:italic 600 12px Georgia,var(--font);color:#2f6f7d;letter-spacing:2px;text-shadow:0 1px 0 #fff,0 0 6px #fff;white-space:nowrap;pointer-events:none}
+.pin{pointer-events:auto;width:28px;height:28px;border-radius:50%;background:var(--coral);color:#fff;display:grid;place-items:center;font:700 15px var(--font);box-shadow:0 3px 10px #4a2a1440,0 0 0 2px #fff;cursor:pointer;user-select:none}
+.pin:hover{background:var(--ink)}
+.pin.active{background:var(--ink);transform:scale(1.15)}
+.pin.lit{box-shadow:0 3px 10px #4a2a1440,0 0 0 2px #fff,0 0 0 6px #fcea8bcc}
+.bubble{background:#fff;border-radius:10px;padding:3px 9px;font:700 11px var(--font);box-shadow:0 2px 8px #4a2a1430;white-space:nowrap;pointer-events:none;position:relative;color:var(--ink)}
+.bubble::after{content:"";position:absolute;left:50%;bottom:-5px;margin-left:-5px;border:5px solid transparent;border-bottom:0;border-top-color:#fff}
+
+/* ---------- help ---------- */
+#help{position:fixed;inset:0;z-index:60;display:grid;place-items:center;background:#211d1d55;transition:opacity .3s;padding:16px}
+#help.closed{opacity:0;pointer-events:none}
+#help .dialog{width:min(440px,100%);border-radius:22px;padding:24px 24px 20px;background:rgba(255,248,244,.94);box-shadow:var(--shadow-card)}
+#help h2{margin:6px 0 14px;font-size:22px}
+.steps{list-style:none;margin:0 0 18px;padding:0;display:flex;flex-direction:column;gap:12px}
+.steps li{display:flex;gap:12px;align-items:flex-start}
+.steps b{width:30px;height:30px;border-radius:50%;background:var(--coral);color:#fff;display:grid;place-items:center;flex:none;font-family:Georgia,serif;font-style:italic;font-size:16px}
+.steps strong{display:block;font-size:14.5px}
+.steps span{font-size:12.5px;color:var(--muted)}
+#help .foot{display:flex;justify-content:space-between;align-items:center;gap:12px}
+#help .foot small{color:var(--muted);font-size:11px;line-height:1.5}
+
+.handle{display:none}
+
+/* ---------- mobile ---------- */
+@media (max-width:800px){
+  #brand{width:auto;right:76px;padding:10px 14px;border-radius:16px}
+  #brand h1{font-size:20px}
+  #brand h1 small{font-size:13px}
+  #brand p{font-size:10.5px}
+  #tools{top:16px;left:auto;right:16px;flex-direction:column}
+  .tool span:not(.ic){display:none}
+  #sidebar{left:0;right:0;top:auto;bottom:0;width:auto;height:52%;border-radius:22px 22px 0 0;z-index:24}
+  #sidebar.closed{transform:translateY(105%)}
+  #card{left:0;right:0;top:auto;bottom:0;width:auto;height:34%;border-radius:22px 22px 0 0;z-index:25;padding-top:4px}
+  #card.closed{transform:translateY(105%)}
+  .handle{display:block;height:24px;margin:0 -18px 2px;cursor:grab;touch-action:none;position:relative;flex:none}
+  .handle::before{content:"";position:absolute;left:50%;top:9px;width:44px;height:5px;margin-left:-22px;border-radius:3px;background:#211d1d33}
+  #sidebar .handle{margin:0}
+  #hud{display:none;left:16px;right:16px;bottom:72px;transform:none;border-radius:22px;flex-wrap:wrap;justify-content:center;padding:8px}
+  #hud.open{display:flex}
+  #hud .sep{display:none}
+  #clockBox{width:100%;flex-direction:row;justify-content:center;gap:10px;padding:2px 0 4px}
+  #timeBtn{display:inline-flex}
+  #legend{bottom:132px;font-size:11px;gap:10px;padding:5px 12px}
+  #log{left:16px;right:16px;width:auto;top:auto;bottom:72px;max-height:34vh}
+  #log.wide{right:16px}
+  #compass{left:auto;right:18px;top:180px;bottom:auto;width:52px;height:52px}
+  .thumbwrap canvas{width:120px;height:120px}
+}
+@media (prefers-reduced-motion:reduce){
+  *{transition:none!important;animation:none!important}
+}
+</style>
+</head>
+<body>
+<div id="stage" aria-label="3D 政策島場景"></div>
+
+<div id="loading" role="status">
+  <div class="ld-inner">
+    <div class="eyebrow" data-en="POLICY ISLAND · FICTIONAL DEMO">POLICY ISLAND · 虛構示範</div>
+    <h1><span class="cityName">示範市</span><small data-en="POLICY ISLAND">政策島</small></h1>
+    <p id="ldMsg" data-en="Assembling the policy campus…">正在組合政策校園…</p>
+    <div class="ld-bar"><i id="ldBar"></i></div>
+    <p id="ldStep"></p>
+    <pre id="ldErr" hidden></pre>
+  </div>
+</div>
+
+<header id="brand" class="glass">
+  <div class="eyebrow" data-en="POLICY ISLAND · DEMO DATA">POLICY ISLAND · 虛構示範資料</div>
+  <h1><span class="cityName">示範市</span><small data-en="Policy Island">政策島</small></h1>
+  <p><span data-en="Scene inspired by the NCU campus; policies are fictional.">場景參考中大校園・政策內容皆為虛構示範</span> · <a id="langLink" href="?lang=en">EN</a></p>
+</header>
+
+<nav id="tools" aria-label="工具列">
+  <button class="btn tool" id="btnHome" title="全景"><span class="ic">⌂</span><span data-en="Overview">全景</span></button>
+  <button class="btn tool" id="btnList" aria-pressed="true" title="清單"><span class="ic">☰</span><span data-en="List">清單</span></button>
+  <button class="btn tool" id="btnHelp" title="說明"><span class="ic">?</span><span data-en="Help">說明</span></button>
+</nav>
+
+<aside id="card" class="glass closed" aria-live="polite">
+  <div class="handle" aria-hidden="true"></div>
+  <button class="btn" id="cardClose" aria-label="關閉卡片">✕</button>
+  <div id="cardBody"></div>
+</aside>
+
+<aside id="sidebar" class="glass closed">
+  <div class="handle" aria-hidden="true"></div>
+  <div class="sb-head">
+    <input id="search" type="search" autocomplete="off" placeholder="搜尋政策、地點…" data-en-ph="Search policies or places…" aria-label="搜尋">
+    <div class="tabs" role="tablist">
+      <button class="btn" role="tab" aria-selected="true" data-tab="topics" data-en="Topics">政策主題</button>
+      <button class="btn" role="tab" aria-selected="false" data-tab="flows" data-en="Collaboration">協作關係</button>
+    </div>
+  </div>
+  <div id="list"></div>
+</aside>
+
+<section id="log" class="glass closed" aria-label="校園日誌">
+  <div class="log-head"><span class="live"><i></i>LIVE</span><b data-en="Campus Log">校園日誌</b><select id="logFilter" aria-label="篩選協作線"></select></div>
+  <ol id="logList"></ol>
+</section>
+
+<div id="legend" class="glass" hidden>
+  <span><svg width="34" height="6"><line x1="2" y1="3" x2="32" y2="3" stroke="#db6a41" stroke-width="3.5" stroke-linecap="round"/></svg><b data-en="Official">官方承諾</b></span>
+  <span><svg width="34" height="6"><line x1="2" y1="3" x2="32" y2="3" stroke="#db6a41" stroke-width="3.5" stroke-dasharray="7 5"/></svg><b data-en="Thematic">主題串聯</b></span>
+  <span><svg width="34" height="6"><line x1="2" y1="3" x2="32" y2="3" stroke="#db6a41" stroke-width="3.5" stroke-dasharray="2.5 5" stroke-linecap="round"/></svg><b data-en="Pending">待確認</b></span>
+</div>
+
+<div id="hud" class="glass" role="toolbar" aria-label="時間與顯示">
+  <div id="clockBox"><span id="clock">10:00</span><span id="seg"></span></div>
+  <span class="sep"></span>
+  <button class="btn hud-btn" data-time="360"><span class="ic">◐</span><span data-en="Dawn 06">清晨 06</span></button>
+  <button class="btn hud-btn" data-time="720"><span class="ic">☀</span><span data-en="Day 12">白天 12</span></button>
+  <button class="btn hud-btn" data-time="1080"><span class="ic">◑</span><span data-en="Dusk 18">黃昏 18</span></button>
+  <button class="btn hud-btn" data-time="1260"><span class="ic">☾</span><span data-en="Night 21">夜晚 21</span></button>
+  <span class="sep"></span>
+  <button class="btn hud-btn" data-toggle="names" aria-pressed="false"><span class="ic">◫</span><span data-en="Tags">名牌</span></button>
+  <button class="btn hud-btn" data-toggle="carry" aria-pressed="true"><span class="ic">⇄</span><span data-en="Walkers">搬運</span></button>
+  <button class="btn hud-btn" data-toggle="flows" aria-pressed="false"><span class="ic">〰</span><span data-en="Flows">協作線</span></button>
+  <button class="btn hud-btn" data-toggle="paused" aria-pressed="false"><span class="ic">❚❚</span><span data-en="Pause">暫停</span></button>
+  <button class="btn hud-btn" data-toggle="aerial" aria-pressed="false"><span class="ic">◎</span><span data-en="Aerial">鳥瞰</span></button>
+  <button class="btn hud-btn" data-toggle="log" aria-pressed="false"><span class="ic">✎</span><span data-en="Log">日誌</span></button>
+</div>
+<button id="timeBtn" class="btn" aria-expanded="false">◷ <span data-en="Time">時間</span></button>
+
+<div id="compass" aria-hidden="true">
+  <svg viewBox="-32 -32 64 64" width="100%" height="100%">
+    <circle r="30" fill="#fff8f4e6" stroke="#e3a8ab" stroke-width="1.5"/>
+    <g id="compassRose">
+      <path d="M0,-25 L5.5,-5.5 L25,0 L5.5,5.5 L0,25 L-5.5,5.5 L-25,0 L-5.5,-5.5Z" fill="#e3a8ab" stroke="#c98589" stroke-width="1"/>
+      <path d="M0,-25 L5.5,-5.5 L0,0 L-5.5,-5.5Z" fill="#db6a41"/>
+      <text y="-13" x="0" text-anchor="middle" font-size="7.5" font-weight="700" fill="#fff" font-family="ui-monospace,monospace" dy="0">N</text>
+    </g>
+  </svg>
+</div>
+
+<div id="help" class="closed" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
+  <div class="dialog">
+    <div class="eyebrow">HOW TO PLAY</div>
+    <h2 id="helpTitle" data-en="Three steps to explore">三步驟逛政策島</h2>
+    <ol class="steps">
+      <li><b>1</b><div><strong data-en="Drag to orbit, right-drag to pan, scroll to zoom">拖曳旋轉、右鍵拖曳平移、滾輪縮放</strong><span data-en="Shift + drag also pans; panning stays within the campus. Arrow keys orbit, Esc closes the card.">Shift＋拖曳也能平移，範圍限制在校園附近；方向鍵轉動鏡頭，Esc 關閉卡片。</span></div></li>
+      <li><b>2</b><div><strong data-en="Tap an island or a building">點小島或建物</strong><span data-en="See each policy item, its key numbers and timeline.">看政策細項、關鍵數字與時程。</span></div></li>
+      <li><b>3</b><div><strong data-en="Turn on “Flows”">打開「協作線」</strong><span data-en="Watch little people carry things between islands.">看小人在島與島之間搬運、交接。</span></div></li>
+    </ol>
+    <div class="foot"><small data-en="Scene inspired by the NCU campus map. All policy content is fictional demo data.">場景參考中大校園導覽圖；政策內容皆為虛構示範資料。</small><button class="btn primary" id="helpOk" data-en="Start">開始探索</button></div>
+  </div>
+</div>
+
+<script type="module">
+/* =====================================================================
+   DATA — 所有內容都由這個物件驅動（虛構示範資料）
+   ===================================================================== */
+const DATA = {
+  city: '示範市', cityEn: 'Demo City',
+  islands: [
+    { id:'traffic', no:'01', name:'交通', nameEn:'Mobility', area:'正門', areaEn:'Main Gate', landmark:'正門牌樓＋正門圓環', landmarkEn:'Main Gate & Roundabout',
+      q:0, r:1, icon:'🚌', ground:'tile', main:'gate', mainPos:[0,0.36], tree:'palm', accent:'#db6a41',
+      summary:'從正門圓環出發，把接駁車、YouBike 與步行串成一張不必開車也到得了的校園路網。',
+      summaryEn:'Starting at the Main Gate roundabout, shuttles, YouBike and walking routes form a car-free campus network.',
+      items:[
+        { id:'tr-shuttle', name:'校園接駁公車', nameEn:'Campus Shuttle', model:'busstop', phase:1,
+          desc:'電動接駁車從正門圓環繞行各區，尖峰時段不用久等。', descEn:'Electric shuttles loop from the Main Gate to every district.',
+          facts:['尖峰時段每 10 分鐘一班','6 個站點串連 12 個分區','電動車隊 8 輛'], factsEn: ["Every 10 min at peak hours", "6 stops linking 12 districts", "8 electric shuttles"] },
+        { id:'tr-bike', name:'YouBike 加站', nameEn:'More YouBike Docks', model:'bikes', phase:1,
+          desc:'每個分區步行 3 分鐘內都借得到車。', descEn:'A bike dock within a 3-minute walk of every district.',
+          facts:['新增 12 個站點','車柱總數增至 360 柱','步行 3 分鐘內可借車'], factsEn: ["12 new docks", "Docks up to 360", "A bike within a 3-min walk"] },
+        { id:'tr-cross', name:'友善路口改造', nameEn:'Safer Crossings', model:'signal', phase:2,
+          desc:'正門大道路口加長行人秒數，標線重新整理。', descEn:'Longer pedestrian signals and clearer markings on the gate avenue.',
+          facts:['改善 9 處路口','行人綠燈延長 8 秒','夜間照度提升 30%'], factsEn: ["9 junctions improved", "Walk signal +8 seconds", "Night lighting +30%"] },
+        { id:'tr-fare', name:'停車費率透明', nameEn:'Clear Parking Fees', model:'coin', phase:1,
+          desc:'機車與汽車停車費率上網公開，可線上繳費。', descEn:'Parking fees published online with online payment.',
+          facts:['費率資訊 100% 上網','線上繳費 3 種管道','月票價格凍漲 2 年'], factsEn: ["100% of fares published online", "3 ways to pay online", "Monthly pass price frozen for 2 years"] },
+        { id:'tr-night', name:'夜歸候車亭', nameEn:'Night Shelters', model:'pavilion', phase:2,
+          desc:'晚間自習後有亮燈、有求助鈕的候車亭。', descEn:'Lit shelters with help buttons for late-night returns.',
+          facts:['設置 5 座亮燈候車亭','求助鈕 24 小時連線','22:00 後加開 2 班'], factsEn: ["5 lit shelters", "Help buttons live 24 hours", "2 extra runs after 22:00"] }
+      ] },
+    { id:'culture', no:'02', name:'文化', nameEn:'Culture', area:'大禮堂', areaEn:'Auditorium', landmark:'圓形大禮堂＋太極銅雕', landmarkEn:'Multi-functional Auditorium & Taichi Bronze',
+      q:0, r:0, icon:'🎭', ground:'tile', main:'auditorium', tree:'camphor', accent:'#6f7fb5',
+      summary:'以圓頂大禮堂與太極銅雕為中心，讓展演、社團與藝術走出室內。',
+      summaryEn:'Centred on the domed auditorium and the Taichi bronze, performances and clubs move outdoors.',
+      items:[
+        { id:'cu-stage', name:'草地音樂會', nameEn:'Lawn Concerts', model:'stage', phase:1,
+          desc:'每月一場戶外音樂會，社團輪流上台。', descEn:'A monthly outdoor concert with clubs taking turns.',
+          facts:['每年 10 場戶外演出','提供 20 個社團檔期','觀眾席 400 席'], factsEn: ["10 outdoor shows a year", "Slots for 20 clubs", "400 audience seats"] },
+        { id:'cu-club', name:'社團擺攤日', nameEn:'Club Fair Days', model:'stall', phase:1,
+          desc:'學期初社團攤位集中擺設，一條街逛完。', descEn:'Club booths gathered on one street at the start of term.',
+          facts:['一次 60 個攤位','每學期 2 次','攤位費全免 100%'], factsEn: ["60 booths at once", "2 fairs per term", "Booth fees waived 100%"] },
+        { id:'cu-art', name:'公共藝術導覽', nameEn:'Public Art Walk', model:'taiji', phase:2,
+          desc:'串起太極銅雕等校園藝術品的導覽路線。', descEn:'A walking route linking the Taichi bronze and other artworks.',
+          facts:['導覽點 12 處','每週 3 梯次導覽','語音導覽 2 種語言'], factsEn: ["12 art stops", "3 guided walks a week", "Audio guide in 2 languages"] },
+        { id:'cu-hall', name:'大禮堂整修', nameEn:'Auditorium Upgrade', model:'brick', phase:3,
+          desc:'更新音響燈光與座椅，承接大型展演。', descEn:'New sound, lighting and seating for large shows.',
+          facts:['更新座椅 1,200 席','音響系統 100% 汰換','無障礙席位增至 24 席'], factsEn: ["1,200 seats replaced", "Sound system 100% renewed", "Accessible seats up to 24"] }
+      ] },
+    { id:'education', no:'03', name:'教育', nameEn:'Education', area:'圖書館區', areaEn:'Library', landmark:'總圖書館', landmarkEn:'Main Library',
+      q:1, r:-1, icon:'📚', ground:'grass', main:'library', tree:'banyan', accent:'#3a78c2',
+      summary:'總圖書館延長開放、自學空間加倍，讓讀書不受時間與座位限制。',
+      summaryEn:'Longer library hours and twice the study space — no more hunting for seats.',
+      items:[
+        { id:'ed-24h', name:'24 小時自習室', nameEn:'24h Study Rooms', model:'school', phase:1,
+          desc:'總圖一樓自習室全年無休，刷卡即可進入。', descEn:'Ground-floor study rooms open around the clock.',
+          facts:['座位 320 席','全年開放 365 天','插座覆蓋率 100%'], factsEn: ["320 seats", "Open 365 days a year", "100% of seats with power sockets"] },
+        { id:'ed-book', name:'共享教科書', nameEn:'Shared Textbooks', model:'book', phase:1,
+          desc:'常用教科書可借整學期，減輕購書負擔。', descEn:'Borrow core textbooks for a whole term.',
+          facts:['首年採購 3,000 冊','每學期可借 5 本','每人平均省 4,500 元'], factsEn: ["3,000 books in year one", "Borrow 5 per term", "Saves 4,500 NTD per student"] },
+        { id:'ed-class', name:'翻轉小教室', nameEn:'Flipped Classrooms', model:'classroom', phase:2,
+          desc:'可移動桌椅的小組教室，讓上課變成討論。', descEn:'Small rooms with movable desks for discussion-based classes.',
+          facts:['改造 18 間教室','每間 24 人','可預約時段 +40%'], factsEn: ["18 classrooms redesigned", "24 students per room", "Bookable slots +40%"] },
+        { id:'ed-tutor', name:'學伴輔導站', nameEn:'Peer Tutoring', model:'clock', phase:1,
+          desc:'學長姐每晚駐點解題，期中期末加開時段。', descEn:'Senior students host problem-solving sessions every evening.',
+          facts:['每週駐點 30 小時','招募 80 位學伴','考試週時段 2 倍'], factsEn: ["30 hours of tutoring a week", "80 peer tutors", "2× sessions in exam weeks"] },
+        { id:'ed-globe', name:'國際交換', nameEn:'Exchange Programs', model:'globe', phase:3,
+          desc:'擴大海外交換與雙聯學位名額。', descEn:'More overseas exchange and dual-degree places.',
+          facts:['合作學校 +25 所','交換名額 200 名','每人補助 6 萬元'], factsEn: ["+25 partner universities", "200 exchange places", "60,000 NTD grant per student"] }
+      ] },
+    { id:'digital', no:'04', name:'數位', nameEn:'Digital', area:'工程學院區', areaEn:'Engineering', landmark:'工程五館', landmarkEn:'Engineering Building V',
+      q:2, r:-2, icon:'💻', ground:'speck', main:'eng5', tree:'cypress', accent:'#58a6a6',
+      summary:'以工程五館為數位基地：全校 Wi-Fi、開放資料與創客空間一次到位。',
+      summaryEn:'Engineering Building V becomes the digital hub: campus Wi-Fi, open data and a maker space.',
+      items:[
+        { id:'di-wifi', name:'全校無縫 Wi-Fi', nameEn:'Seamless Wi-Fi', model:'antenna', phase:1,
+          desc:'草坪、湖邊與宿舍都收得到穩定網路。', descEn:'Stable coverage on lawns, by the lake and in dorms.',
+          facts:['新增 450 個基地台','戶外覆蓋率 95%','尖峰速度 300 Mbps'], factsEn: ["450 new access points", "95% outdoor coverage", "300 Mbps at peak"] },
+        { id:'di-maker', name:'創客空間', nameEn:'Maker Space', model:'brick', phase:2,
+          desc:'3D 印表機、雷射切割機開放預約。', descEn:'Book 3D printers and laser cutters online.',
+          facts:['設備 40 台','每週開放 70 小時','每學期 12 場工作坊'], factsEn: ["40 machines", "Open 70 hours a week", "12 workshops per term"] },
+        { id:'di-data', name:'校園開放資料', nameEn:'Open Campus Data', model:'school', phase:2,
+          desc:'公車、停車、用電資料即時公開。', descEn:'Live shuttle, parking and energy data.',
+          facts:['開放 30 組資料集','每 5 分鐘更新','API 申請 0 元'], factsEn: ["30 open datasets", "Updated every 5 min", "API access 0 NTD"] },
+        { id:'di-app', name:'校園 App', nameEn:'Campus App', model:'clock', phase:1,
+          desc:'選課、借書、報修整合在一支 App。', descEn:'Courses, library and repairs in one app.',
+          facts:['整合 15 項服務','報修 48 小時內回覆','目標下載 2 萬次'], factsEn: ["15 services in one app", "Repairs answered within 48 hours", "Goal: 20,000 downloads"] }
+      ] },
+    { id:'eco', no:'05', name:'環保', nameEn:'Environment', area:'北側研究區', areaEn:'North Research', landmark:'太空遙測中心雷達球', landmarkEn:'Space & Remote Sensing Radome',
+      q:1, r:-2, icon:'🌱', ground:'speck', main:'radarCenter', tree:'pine', accent:'#71806a',
+      summary:'借重遙測研究區的觀測能力，監測校園碳排、空氣與水資源。',
+      summaryEn:'Using the research zone’s sensing know-how to track carbon, air and water on campus.',
+      items:[
+        { id:'ec-solar', name:'屋頂太陽能', nameEn:'Rooftop Solar', model:'solar', phase:2,
+          desc:'研究大樓屋頂鋪設太陽能板。', descEn:'Solar panels across research building roofs.',
+          facts:['裝置容量 1.2 MW','每年減碳 600 公噸','覆蓋 14 棟屋頂'], factsEn: ["1.2 MW installed", "600 tonnes of CO₂ cut a year", "14 rooftops covered"] },
+        { id:'ec-sensor', name:'空品感測站', nameEn:'Air Sensors', model:'radar', phase:1,
+          desc:'各區設置空氣品質感測器，資料即時上網。', descEn:'Air-quality sensors in every district, live online.',
+          facts:['設置 24 站','每 1 分鐘回傳','異常 10 分鐘內通報'], factsEn: ["24 sensor stations", "Data every 1 min", "Alerts within 10 min"] },
+        { id:'ec-recycle', name:'資源回收站', nameEn:'Recycling Hubs', model:'stall', phase:1,
+          desc:'分類回收站加上二手物交換角。', descEn:'Sorting stations with a swap corner.',
+          facts:['回收站 16 處','回收率提升至 65%','每月 1 次二手市集'], factsEn: ["16 recycling hubs", "Recycling rate up to 65%", "1 swap market a month"] },
+        { id:'ec-rain', name:'雨水回收', nameEn:'Rainwater Reuse', model:'brook', phase:3,
+          desc:'雨水收集後用於澆灌草坪與沖廁。', descEn:'Harvested rain waters the lawns and flushes toilets.',
+          facts:['儲水量 800 噸','每年省水 2.4 萬度','澆灌自給率 70%'], factsEn: ["800 tonnes of storage", "24,000 units of water saved a year", "70% of irrigation self-supplied"] }
+      ] },
+    { id:'sport', no:'06', name:'運動', nameEn:'Sports', area:'田徑場', areaEn:'Track Field', landmark:'400m 田徑場', landmarkEn:'400m Track Field',
+      q:0, r:-2, icon:'🏃', ground:'grass', main:'track', tree:'sweetgum', accent:'#3a78c2',
+      summary:'整修田徑場與球場，讓晨跑者、校隊與鄰里居民都有地方運動。',
+      summaryEn:'Renewed track and courts for morning runners, varsity teams and neighbours.',
+      items:[
+        { id:'sp-tennis', name:'夜間網球場', nameEn:'Night Tennis', model:'court', phase:1,
+          desc:'網球場加裝 LED 照明，開放到 22:00。', descEn:'LED-lit tennis courts open until 22:00.',
+          facts:['6 面球場','開放延長 3 小時','LED 省電 50%'], factsEn: ["6 courts", "Open 3 hours longer", "LED lights save 50% power"] },
+        { id:'sp-hoop', name:'籃球場遮雨棚', nameEn:'Covered Courts', model:'basket', phase:2,
+          desc:'籃球場加蓋遮雨棚，雨天照常打球。', descEn:'Roofed basketball courts for rainy days.',
+          facts:['遮雨棚 2,400 平方公尺','4 面籃球場','雨天使用率 +60%'], factsEn: ["2,400 m² canopy", "4 basketball courts", "Rainy-day use +60%"] },
+        { id:'sp-run', name:'晨跑補給站', nameEn:'Morning Run Station', model:'stall', phase:1,
+          desc:'晨跑時段提供飲水與伸展區。', descEn:'Water and a stretching area for early runners.',
+          facts:['飲水機 8 台','每日 05:30 開放','伸展區 120 平方公尺'], factsEn: ["8 water fountains", "Open daily from 05:30", "120 m² stretching area"] },
+        { id:'sp-gym', name:'社區共享健身房', nameEn:'Shared Gym', model:'brick', phase:2,
+          desc:'體育館健身房開放鄰里居民預約。', descEn:'Neighbours can book the campus gym.',
+          facts:['每週開放 20 小時','社區名額 150 人','月費 300 元'], factsEn: ["Open 20 hours a week", "150 community members", "300 NTD a month"] },
+        { id:'sp-volley', name:'沙灘排球場', nameEn:'Beach Volleyball', model:'volley', phase:3,
+          desc:'田徑場旁新設沙灘排球場。', descEn:'New sand volleyball courts beside the track.',
+          facts:['新設 2 面球場','用沙 180 噸','週末開放 8 小時'], factsEn: ["2 new courts", "180 tonnes of sand", "Open 8 hours on weekends"] }
+      ] },
+    { id:'green', no:'07', name:'綠地', nameEn:'Green Space', area:'中央大草坪', areaEn:'Central Lawn', landmark:'大草坪（棒壘球場）', landmarkEn:'Central Lawn & Ball Field',
+      q:0, r:-1, icon:'🌳', ground:'grass', main:'lawn', tree:'flame', accent:'#7fb24a',
+      summary:'保留大草坪的開闊與自由，再補上樹蔭、步道與野餐區。',
+      summaryEn:'Keep the lawn open and free, then add shade, paths and picnic spots.',
+      items:[
+        { id:'gr-tree', name:'千棵樹計畫', nameEn:'Thousand Trees', model:'garden', phase:2,
+          desc:'在大草坪周邊補植原生樹種。', descEn:'Native trees planted around the lawn.',
+          facts:['補植 1,000 棵','原生樹種占 80%','樹冠覆蓋 +15%'], factsEn: ["1,000 trees planted", "80% native species", "Tree canopy +15%"] },
+        { id:'gr-picnic', name:'野餐草地', nameEn:'Picnic Lawn', model:'sakura', phase:1,
+          desc:'劃設野餐區，提供可借用的野餐墊。', descEn:'Picnic zones with mats to borrow.',
+          facts:['野餐區 3 處','可借野餐墊 200 張','週末開放到 21:00'], factsEn: ["3 picnic zones", "200 picnic mats to borrow", "Open until 21:00 on weekends"] },
+        { id:'gr-shade', name:'林蔭步道', nameEn:'Shaded Paths', model:'pavilion', phase:2,
+          desc:'主要步道加種行道樹與遮蔭棚。', descEn:'Street trees and shade shelters along main paths.',
+          facts:['林蔭步道 3.2 公里','遮蔭棚 10 座','夏季地表降溫 4°C'], factsEn: ["3.2 km of shaded paths", "10 shade shelters", "Ground 4°C cooler in summer"] }
+      ] },
+    { id:'tourism', no:'08', name:'觀光', nameEn:'Visitors', area:'中大湖', areaEn:'Zhong-Da Lake', landmark:'中大湖與櫻花步道', landmarkEn:'Zhong-Da Lake & Sakura Walk',
+      q:2, r:-1, icon:'🌸', ground:'grass', main:'lake', tree:'sakura', accent:'#f2b5c6',
+      summary:'櫻花季的中大湖是最受歡迎的景點，規劃導覽、市集與友善參觀動線。',
+      summaryEn:'Zhong-Da Lake in sakura season draws crowds — add tours, a market and visitor-friendly routes.',
+      items:[
+        { id:'to-sakura', name:'櫻花季', nameEn:'Sakura Festival', model:'sakura', phase:1,
+          desc:'湖畔櫻花季期間延長夜間點燈。', descEn:'Longer evening lighting during sakura season.',
+          facts:['花季 21 天','夜間點燈到 21:30','預估 8 萬人次'], factsEn: ["21-day bloom season", "Lit until 21:30", "80,000 visits expected"] },
+        { id:'to-guide', name:'校園導覽', nameEn:'Campus Tours', model:'tower', phase:1,
+          desc:'學生導覽員帶訪客認識校園地標。', descEn:'Student guides lead visitors to campus landmarks.',
+          facts:['每週 6 梯次','導覽員 40 位','外語導覽 2 條路線'], factsEn: ["6 tours a week", "40 student guides", "2 foreign-language routes"] },
+        { id:'to-market', name:'湖畔小市集', nameEn:'Lakeside Market', model:'stall', phase:2,
+          desc:'假日湖畔市集，在地小農與學生創作。', descEn:'Weekend market for local farmers and student makers.',
+          facts:['每月 2 場','攤位 40 個','在地小農占 50%'], factsEn: ["2 markets a month", "40 stalls", "50% local farmers"] },
+        { id:'to-bridge', name:'湖心步橋', nameEn:'Lake Footbridge', model:'brook', phase:3,
+          desc:'整修湖心小橋並加裝夜間地燈。', descEn:'Restored lake bridge with low night lighting.',
+          facts:['步橋長 36 公尺','地燈 48 盞','無障礙坡道 2 處'], factsEn: ["36 m footbridge", "48 ground lights", "2 accessible ramps"] }
+      ] },
+    { id:'youth', no:'09', name:'青年', nameEn:'Youth', area:'學生宿舍區', areaEn:'Dorms', landmark:'學生宿舍群', landmarkEn:'Student Dormitories',
+      q:-1, r:-1, icon:'🎒', ground:'speck', main:'dorms', tree:'camphor', accent:'#58a6a6',
+      summary:'宿舍區是學生的第二個家：更多床位、更好的公共空間與打工機會。',
+      summaryEn:'The dorms are a second home: more beds, better shared spaces and campus jobs.',
+      items:[
+        { id:'yo-dorm', name:'宿舍增建', nameEn:'New Dorm Beds', model:'school', phase:3,
+          desc:'增建宿舍並整修舊棟衛浴。', descEn:'New dorm blocks and renovated bathrooms.',
+          facts:['新增床位 1,200 床','整修 6 棟','住宿費凍漲 2 年'], factsEn: ["1,200 new beds", "6 halls renovated", "Dorm fees frozen for 2 years"] },
+        { id:'yo-food', name:'深夜食堂', nameEn:'Late-night Canteen', model:'stall', phase:1,
+          desc:'宿舍區餐廳營業到午夜。', descEn:'Dorm canteen open until midnight.',
+          facts:['營業至 24:00','平價餐 60 元起','每日 600 份'], factsEn: ["Open until 24:00", "Meals from 60 NTD", "600 meals a day"] },
+        { id:'yo-job', name:'校內打工媒合', nameEn:'Campus Jobs', model:'clock', phase:1,
+          desc:'校內工讀職缺一站媒合。', descEn:'One-stop matching for campus jobs.',
+          facts:['職缺 800 個','時薪不低於基本工資 100%','48 小時內媒合'], factsEn: ["800 jobs", "100% paid at least minimum wage", "Matched within 48 hours"] },
+        { id:'yo-hoop', name:'宿舍籃球場', nameEn:'Dorm Courts', model:'basket', phase:2,
+          desc:'宿舍旁球場整修並加裝夜間照明。', descEn:'Renovated, lit courts next to the dorms.',
+          facts:['2 面球場','開放到 23:00','地坪 100% 更新'], factsEn: ["2 courts", "Open until 23:00", "Court surfaces 100% renewed"] },
+        { id:'yo-laundry', name:'智慧洗衣', nameEn:'Smart Laundry', model:'brick', phase:1,
+          desc:'洗衣機線上查空位、手機付款。', descEn:'Check free machines online, pay by phone.',
+          facts:['洗衣機 180 台','即時查空位 24 小時','單次 20 元'], factsEn: ["180 machines", "Live availability 24 hours", "20 NTD per wash"] }
+      ] },
+    { id:'childcare', no:'10', name:'托育', nameEn:'Childcare', area:'中大新村', areaEn:'Faculty Village', landmark:'教職員宿舍與小公園', landmarkEn:'Faculty Housing & Pocket Park',
+      q:-1, r:0, icon:'🧸', ground:'grass', main:'village', tree:'sweetgum', accent:'#f2b5c6',
+      summary:'教職員宿舍區設置托育與親子空間，讓研究生家長與教職員安心工作。',
+      summaryEn:'Childcare and family spaces in faculty housing so parents can work with peace of mind.',
+      items:[
+        { id:'ch-day', name:'校園托嬰中心', nameEn:'Campus Daycare', model:'school', phase:2,
+          desc:'收托 0–2 歲幼兒，優先提供研究生家長。', descEn:'Care for ages 0–2, graduate-student parents first.',
+          facts:['收托 40 名','月費 8,000 元','照顧比 1:4'], factsEn: ["40 places", "8,000 NTD a month", "Carer ratio 1:4"] },
+        { id:'ch-play', name:'共融遊戲場', nameEn:'Inclusive Playground', model:'playground', phase:1,
+          desc:'小公園改建為共融遊戲場。', descEn:'The pocket park becomes an inclusive playground.',
+          facts:['遊具 12 組','無障礙動線 100%','面積 900 平方公尺'], factsEn: ["12 play structures", "100% step-free routes", "900 m² of play space"] },
+        { id:'ch-room', name:'哺集乳室', nameEn:'Nursing Rooms', model:'clinic', phase:1,
+          desc:'各大樓設置哺集乳室。', descEn:'Nursing rooms in every building.',
+          facts:['新增 15 間','每棟至少 1 間','4 間 24 小時開放'], factsEn: ["15 new nursing rooms", "At least 1 per building", "4 rooms open 24 hours"] },
+        { id:'ch-story', name:'親子故事屋', nameEn:'Story House', model:'book', phase:1,
+          desc:'週末親子共讀與故事時間。', descEn:'Weekend read-alongs and story time.',
+          facts:['每週 2 場','繪本 2,500 冊','志工 30 位'], factsEn: ["2 sessions a week", "2,500 picture books", "30 volunteers"] }
+      ] },
+    { id:'eldercare', no:'11', name:'長照', nameEn:'Elder Care', area:'中大會館', areaEn:'Guest House', landmark:'弧形宿舍與戶外水池', landmarkEn:'Curved Hall & Outdoor Pool',
+      q:-2, r:0, icon:'🤝', ground:'tile', main:'clubhouse', tree:'palm', accent:'#e3a8ab',
+      summary:'中大會館一帶結合社區長者服務：日照、共餐與健康促進。',
+      summaryEn:'Around the Guest House: day care, shared meals and health programmes for local seniors.',
+      items:[
+        { id:'el-day', name:'社區日照中心', nameEn:'Day Care Center', model:'clinic', phase:2,
+          desc:'白天照顧社區長者，提供復健與活動。', descEn:'Daytime care, rehab and activities for seniors.',
+          facts:['服務 60 位長者','每週開放 6 天','專業人員 12 位'], factsEn: ["Serves 60 seniors", "Open 6 days a week", "12 professional staff"] },
+        { id:'el-meal', name:'長者共餐', nameEn:'Shared Meals', model:'stall', phase:1,
+          desc:'學生志工與長者每週共餐。', descEn:'Student volunteers share weekly meals with seniors.',
+          facts:['每週 3 次','每次 80 份','志工 120 位'], factsEn: ["3 times a week", "80 meals each time", "120 volunteers"] },
+        { id:'el-walk', name:'健走步道', nameEn:'Walking Trail', model:'garden', phase:1,
+          desc:'水池周邊規劃平緩健走步道。', descEn:'A gentle walking loop around the pool.',
+          facts:['步道 1.2 公里','座椅每 50 公尺一處','扶手 400 公尺'], factsEn: ["1.2 km trail", "A bench every 50 m", "400 m of handrails"] },
+        { id:'el-check', name:'健康檢測站', nameEn:'Health Check Kiosk', model:'pavilion', phase:1,
+          desc:'量血壓、體重的自助健康站。', descEn:'Self-service blood pressure and weight checks.',
+          facts:['設置 6 站','每月健康講座 2 場','資料可串接手機 100%'], factsEn: ["6 kiosks", "2 health talks a month", "100% phone sync"] }
+      ] },
+    { id:'safety', no:'12', name:'安全', nameEn:'Safety', area:'文學院', areaEn:'Humanities', landmark:'人文社會科學大樓＋大象五形', landmarkEn:'Humanities Building & Five Elephants',
+      q:1, r:0, icon:'🛡️', ground:'tile', main:'humanities', tree:'pine', accent:'#3e7c8c',
+      summary:'人文社會科學大樓一帶設置安全中樞：照明、巡守與緊急求助。',
+      summaryEn:'A safety hub near the Humanities Building: lighting, patrols and emergency help.',
+      items:[
+        { id:'sa-light', name:'暗區照明', nameEn:'Lighting Dark Spots', model:'tower', phase:1,
+          desc:'盤點校園暗區並加裝路燈。', descEn:'Map dark spots and add street lights.',
+          facts:['改善 42 處暗區','新增路燈 300 盞','照度提升 2 倍'], factsEn: ["42 dark spots fixed", "300 new street lights", "2× brighter"] },
+        { id:'sa-call', name:'緊急求助柱', nameEn:'Emergency Call Posts', model:'signal', phase:1,
+          desc:'每 150 公尺一支緊急求助柱。', descEn:'An emergency post every 150 metres.',
+          facts:['設置 60 支','24 小時連線','3 分鐘內到場'], factsEn: ["60 call posts", "Connected 24 hours", "On site within 3 min"] },
+        { id:'sa-patrol', name:'夜間巡守', nameEn:'Night Patrol', model:'bikes', phase:1,
+          desc:'巡守隊騎腳踏車巡邏宿舍與湖邊。', descEn:'Bike patrols around the dorms and the lake.',
+          facts:['巡守 12 條路線','每晚 4 輪','學生志工 50 位'], factsEn: ["12 patrol routes", "4 rounds a night", "50 student volunteers"] },
+        { id:'sa-cam', name:'智慧監測', nameEn:'Smart Monitoring', model:'antenna', phase:2,
+          desc:'重點區域影像監測並遵守個資規範。', descEn:'Camera coverage at key spots under privacy rules.',
+          facts:['重點點位 80 處','資料保存 30 天','每年公開稽核 1 次'], factsEn: ["80 key locations", "Footage kept 30 days", "1 public audit a year"] },
+        { id:'sa-art', name:'人文藝廊廣場', nameEn:'Humanities Plaza', model:'elephant', phase:3,
+          desc:'大象五形雕塑周邊改為夜間友善廣場。', descEn:'A night-friendly plaza around the Five Elephants.',
+          facts:['廣場 1,500 平方公尺','夜間照明 20 盞','每季 1 檔展覽'], factsEn: ["1,500 m² plaza", "20 night lights", "1 exhibition per season"] }
+      ] }
+  ],
+  // 協作線：from → to，搬運物、角色、證據等級
+  flows: [
+    { id:'f1', from:'education', to:'youth', cargo:'book', cargoName:'書', cargoEn:'books', roles:['prof','student'], walkers:8, evidence:'official',
+      title:'夜讀書車', titleEn:'Night Book Cart', note:'總圖的共享教科書每晚送到宿舍服務台。', noteEn:'Shared textbooks are delivered to the dorm desk every night.' },
+    { id:'f2', from:'eco', to:'green', cargo:'sapling', cargoName:'樹苗', cargoEn:'saplings', roles:['gardener'], walkers:6, evidence:'official',
+      title:'樹苗接力', titleEn:'Sapling Relay', note:'研究區苗圃育成的原生樹苗移植到大草坪。', noteEn:'Native saplings from the research nursery are planted on the lawn.' },
+    { id:'f3', from:'youth', to:'eldercare', cargo:'bento', cargoName:'餐盒', cargoEn:'meal boxes', roles:['student','biker'], walkers:10, evidence:'thematic',
+      title:'學生送餐', titleEn:'Student Meal Run', note:'深夜食堂的餐盒由學生志工送到中大會館共餐。', noteEn:'Student volunteers bring canteen meals to the Guest House.' },
+    { id:'f4', from:'safety', to:'eldercare', cargo:'medkit', cargoName:'藥箱', cargoEn:'first-aid kits', roles:['admin'], walkers:5, evidence:'official',
+      title:'健康巡迴', titleEn:'Health Rounds', note:'安全中樞定期補充日照中心的急救用品。', noteEn:'The safety hub restocks first-aid kits at the day care center.' },
+    { id:'f5', from:'digital', to:'education', cargo:'laptop', cargoName:'筆電', cargoEn:'laptops', roles:['researcher','biker'], walkers:7, evidence:'thematic',
+      title:'筆電借用', titleEn:'Laptop Loans', note:'工程五館整備的借用筆電送到總圖借還櫃台。', noteEn:'Loan laptops prepared in Engineering V go to the library desk.' },
+    { id:'f6', from:'traffic', to:'tourism', cargo:'suitcase', cargoName:'行李箱', cargoEn:'luggage', roles:['visitor'], walkers:9, evidence:'thematic',
+      title:'訪客動線', titleEn:'Visitor Route', note:'訪客從正門下車，拖著行李走到中大湖。', noteEn:'Visitors arrive at the Main Gate and walk to Zhong-Da Lake.' },
+    { id:'f7', from:'sport', to:'youth', cargo:'ball', cargoName:'球具', cargoEn:'sports gear', roles:['runner','student'], walkers:8, evidence:'pending',
+      title:'球具共享', titleEn:'Gear Sharing', note:'體育室的球具借到宿舍區球場使用（規劃中）。', noteEn:'Sports gear lent to dorm courts (under discussion).' },
+    { id:'f8', from:'childcare', to:'culture', cargo:'toy', cargoName:'玩具', cargoEn:'toys', roles:['parent'], walkers:5, evidence:'pending',
+      title:'親子場次', titleEn:'Family Shows', note:'大禮堂週末加開親子場，托育中心帶孩子參加。', noteEn:'Weekend family shows at the auditorium for daycare families.' },
+    { id:'f9', from:'digital', to:'safety', cargo:'toolbox', cargoName:'工具箱', cargoEn:'toolboxes', roles:['worker'], walkers:4, evidence:'official',
+      title:'設備維護', titleEn:'Device Upkeep', note:'數位基地的技術人員維護求助柱與照明。', noteEn:'Technicians maintain help posts and lighting.' },
+    { id:'f10', from:'eldercare', to:'green', cargo:'book', cargoName:'健康手冊', cargoEn:'health booklets', roles:['elder'], walkers:4, evidence:'thematic',
+      title:'長者健走', titleEn:'Senior Walks', note:'長者帶著健康手冊到大草坪健走、量測。', noteEn:'Seniors walk to the lawn with their health booklets.' }
+  ],
+  // 一天的時段：哪些細項在該時段亮起
+  dayCycle: [
+    { id:'run',   name:'晨跑',           nameEn:'Morning Run',     from:330,  to:450,  items:['sp-run','sp-tennis','gr-tree','el-walk','to-sakura'] },
+    { id:'class', name:'早八上課',       nameEn:'8 AM Class',      from:450,  to:690,  items:['tr-shuttle','tr-bike','ed-class','di-app','ed-book'] },
+    { id:'lunch', name:'午餐',           nameEn:'Lunch',           from:690,  to:810,  items:['yo-food','cu-club','el-meal','to-market','gr-picnic'] },
+    { id:'lab',   name:'下午實驗',       nameEn:'Afternoon Lab',   from:810,  to:1020, items:['di-maker','di-data','ec-sensor','ec-solar','ch-day'] },
+    { id:'lake',  name:'傍晚散步中大湖', nameEn:'Evening Lake Walk', from:1020, to:1140, items:['to-bridge','to-guide','gr-shade','ch-play','el-check','cu-stage'] },
+    { id:'study', name:'晚間自習',       nameEn:'Evening Study',   from:1140, to:1380, items:['ed-24h','ed-tutor','tr-night','sa-light','yo-hoop','sp-tennis'] },
+    { id:'night', name:'深夜宿舍',       nameEn:'Late Night',      from:1380, to:330,  items:['yo-laundry','yo-food','sa-patrol','sa-call','tr-night'] }
+  ],
+  brook: { name:'百花川', nameEn:'Hundred Blossoms Brook', pairs:[['sport','eco'],['sport','green'],['youth','green'],['childcare','green'],['childcare','culture']] }
+};
+
+/* =====================================================================
+   基本工具（不依賴 three）
+   ===================================================================== */
+const LANG = (() => { try { return new URLSearchParams(location.search).get('lang') === 'en' ? 'en' : 'zh'; } catch (e) { return 'zh'; } })();
+const tr = (zh, en) => (LANG === 'en' && en != null) ? en : zh;
+function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+const rng = mulberry32(115020);
+const rr = (a, b) => a + (b - a) * rng();
+const pick = arr => arr[Math.floor(rng() * arr.length)];
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+const smooth = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
+const easeInOutCubic = t => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const store = {
+  get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* 無痕或封鎖時略過 */ } }
+};
+const CIRC = '①②③④⑤⑥⑦⑧⑨⑩';
+const PHASES = [['第 1 年', 'Year 1'], ['第 2–3 年', 'Years 2–3'], ['第 4 年', 'Year 4']];
+const EVID = { official: ['官方承諾', 'Official'], thematic: ['主題串聯', 'Thematic'], pending: ['待確認', 'Pending'] };
+const SEP = LANG === 'en' ? ' · ' : '・';
+const ROLES = {
+  admin:      { zh: '行政人員', en: 'Staff', shirt: '#f2f1ec' },
+  researcher: { zh: '研究員', en: 'Researcher', shirt: '#fbfbf8' },
+  prof:       { zh: '教授', en: 'Professor', shirt: '#6f7fb5' },
+  student:    { zh: '大學生', en: 'Student', shirt: null },
+  biker:      { zh: '騎 YouBike 的學生', en: 'Student on a YouBike', shirt: null },
+  runner:     { zh: '晨跑者', en: 'Runner', shirt: '#fcea8b' },
+  elder:      { zh: '長者', en: 'Senior', shirt: '#c5b5a7' },
+  parent:     { zh: '推嬰兒車的家長', en: 'Parent with stroller', shirt: '#58a6a6' },
+  gardener:   { zh: '園藝工人', en: 'Gardener', shirt: '#71806a' },
+  worker:     { zh: '工人', en: 'Worker', shirt: '#db6a41' },
+  visitor:    { zh: '訪客', en: 'Visitor', shirt: null }
+};
+const roleName = r => tr(ROLES[r].zh, ROLES[r].en);
+const C = {
+  coral: '#db6a41', ink: '#211d1d', cream: '#fff8f4', yellow: '#fcea8b', stone: '#c5b5a7', green: '#71806a',
+  white: '#f2f1ec', gray: '#c9ccd1', win: '#4a6fb5', path: '#e3a8ab', lawn: '#7fb24a', track: '#3a78c2', road: '#2e2e2e', sakura: '#f6c1d3',
+  glass: '#86a8a6', wood: '#b48560', teal: '#3e7c8c', p1: '#9cc27a', p2: '#8db86f', p3: '#728f5f', pink: '#f2b5c6', aqua: '#58a6a6', blue: '#6f7fb5',
+  brick: '#b8614a', roof: '#e2e0d8', dark: '#4a4a50', copper: '#b8714e', curb: '#e4d6c3', skin: ['#f1d2b6', '#e8c09c', '#d9a77f', '#f5dcc6']
+};
+const FLOWERS = ['#f2b5c6', '#fcea8b', '#fff8f4', '#db6a41', '#f6c1d3', '#6f7fb5'];
+
+// 世界常數（照規格）
+const R = 2.02, SPACING = 2.28, TOP = 0.65, WATER_Y = -0.18, SQ3 = Math.sqrt(3);
+const axial = (q, r) => ({ x: SQ3 * SPACING * (q + r / 2), z: 1.5 * SPACING * r });
+
+// 索引
+const ISL = new Map(), ITEM = new Map(), FLOW = new Map();
+DATA.islands.forEach((isl, i) => {
+  isl.index = i; ISL.set(isl.id, isl);
+  isl.items.forEach((it, k) => { it.island = isl.id; it.no = k; ITEM.set(it.id, it); });
+});
+DATA.flows.forEach((f, i) => { f.index = i; FLOW.set(f.id, f); });
+const islName = id => tr(ISL.get(id).name, ISL.get(id).nameEn);
+
+/* =====================================================================
+   載入 three（動態 import，失敗時顯示錯誤而非白畫面）
+   ===================================================================== */
+let THREE, OrbitControls, CSS2DRenderer, CSS2DObject, RoundedBoxGeometry, mergeGeometries, SimplexNoise;
+async function loadLibs() {
+  const [T, oc, css, rb, bu, sn] = await Promise.all([
+    import('three'),
+    import('three/addons/controls/OrbitControls.js'),
+    import('three/addons/renderers/CSS2DRenderer.js'),
+    import('three/addons/geometries/RoundedBoxGeometry.js'),
+    import('three/addons/utils/BufferGeometryUtils.js'),
+    import('three/addons/math/SimplexNoise.js')
+  ]);
+  THREE = T; OrbitControls = oc.OrbitControls; CSS2DRenderer = css.CSS2DRenderer; CSS2DObject = css.CSS2DObject;
+  RoundedBoxGeometry = rb.RoundedBoxGeometry; mergeGeometries = bu.mergeGeometries; SimplexNoise = sn.SimplexNoise;
+}
+
+/* =====================================================================
+   狀態
+   ===================================================================== */
+const isMobile = () => window.innerWidth <= 800;
+const S = {
+  minute: 600, simTime: 0, paused: false, reduced: false, night: 0,
+  names: false, carry: true, flows: false, aerial: false, log: false,
+  sel: null, relFlows: new Set(), seg: null, dirty: true, mobile: isMobile(),
+  cardOpen: false, sidebarOpen: !isMobile(), flight: null, logFilter: 'all', logs: [], lastQ: -1, lastClock: -1
+};
+let renderer, scene, camera, controls, labelRenderer, stage;
+let UP, center, noise;
+let hemi, sun, fill, sky, waterMat, sideMat, glowMat, solidMat, poolMat;
+const kitMeshes = [], smallMeshes = [], pickables = [], mountains = [], labelItems = [];
+let clouds = null, flowTubes = [], pins = [], islandTopMeshes = [];
+
+/* =====================================================================
+   零件庫 kit：建模只推 {kind, matrix, color}，最後每種 kind 一個 InstancedMesh
+   ===================================================================== */
+const kit = { parts: [], M: null, owner: null, small: false, noPad: false, topY: -Infinity, pools: [] };
+const KINDS = {};
+let _e, _q, _p, _s, _m, _v;
+const colCache = new Map();
+function col(c) { if (c && c.isColor) return c; let v = colCache.get(c); if (!v) { v = new THREE.Color(c); colCache.set(c, v); } return v; }
+function normalizeGeo(g) {
+  g.computeBoundingBox(); const b = g.boundingBox, s = new THREE.Vector3(); b.getSize(s);
+  g.translate(-(b.min.x + b.max.x) / 2, -b.min.y, -(b.min.z + b.max.z) / 2);
+  g.scale(1 / s.x, 1 / s.y, 1 / s.z); g.computeBoundingSphere(); return g;
+}
+function makeKinds() {
+  _e = new THREE.Euler(); _q = new THREE.Quaternion(); _p = new THREE.Vector3(); _s = new THREE.Vector3(); _m = new THREE.Matrix4(); _v = new THREE.Vector3();
+  kit.M = new THREE.Matrix4();
+  // 全部正規化成底面中心在原點、[-.5,.5]×[0,1]×[-.5,.5] 的單位盒
+  KINDS.box = normalizeGeo(new THREE.BoxGeometry(1, 1, 1));
+  KINDS.rbox = normalizeGeo(new RoundedBoxGeometry(1, 1, 1, 2, 0.12));
+  KINDS.cyl = normalizeGeo(new THREE.CylinderGeometry(.5, .5, 1, 14));
+  KINDS.cone = normalizeGeo(new THREE.ConeGeometry(.5, 1, 14));
+  KINDS.sphere = normalizeGeo(new THREE.SphereGeometry(.5, 16, 12));
+  KINDS.ico = normalizeGeo(new THREE.IcosahedronGeometry(.5, 1));
+  KINDS.dome = normalizeGeo(new THREE.SphereGeometry(.5, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2));
+  KINDS.torus = normalizeGeo(new THREE.TorusGeometry(.4, .1, 8, 28).rotateX(Math.PI / 2));
+  KINDS.prism = normalizeGeo(new THREE.CylinderGeometry(.5, .5, 1, 3).rotateX(-Math.PI / 2).rotateY(Math.PI / 2));
+  KINDS.hip = normalizeGeo(new THREE.ConeGeometry(.7071, 1, 4).rotateY(Math.PI / 4));
+  KINDS.glowbox = KINDS.box; KINDS.glowsphere = KINDS.sphere;
+}
+function part(kind, x, y, z, sx, sy, sz, c, rx = 0, ry = 0, rz = 0, order = 'XYZ') {
+  const j = 1 + (rng() * 2 - 1) * 0.0072; // 防 z-fighting 的微抖動
+  _e.set(rx, ry, rz, order); _q.setFromEuler(_e);
+  _m.compose(_p.set(x, y, z), _q, _s.set(sx * j, sy * j, sz * j));
+  const m = kit.M.clone().multiply(_m);
+  kit.parts.push({ kind, m, c: col(c), owner: kit.owner, small: kit.small });
+  _v.set(0, 1, 0).applyMatrix4(m); if (_v.y > kit.topY) kit.topY = _v.y;
+}
+const box = (x, y, z, w, h, d, c, ry = 0) => part('box', x, y, z, w, h, d, c, 0, ry, 0);
+const rbox = (x, y, z, w, h, d, c, ry = 0) => part('rbox', x, y, z, w, h, d, c, 0, ry, 0);
+const gbox = (x, y, z, w, h, d, c = C.win, ry = 0) => part('glowbox', x, y, z, w, h, d, c, 0, ry, 0);
+const cyl = (x, y, z, d, h, c, dz) => part('cyl', x, y, z, d, h, dz ?? d, c);
+const cone = (x, y, z, d, h, c) => part('cone', x, y, z, d, h, d, c);
+const sph = (x, y, z, d, c) => part('sphere', x, y, z, d, d, d, c);
+const gsph = (x, y, z, d, c = '#fff3d6') => part('glowsphere', x, y, z, d, d, d, c);
+const ico = (x, y, z, d, h, c) => part('ico', x, y, z, d, h ?? d, d, c);
+const dome = (x, y, z, d, h, c) => part('dome', x, y, z, d, h, d, c);
+const hip = (x, y, z, w, h, d, c, ry = 0) => part('hip', x, y, z, w, h, d, c, 0, ry, 0);
+const prism = (x, y, z, w, h, d, c, ry = 0) => part('prism', x, y, z, w, h, d, c, 0, ry, 0);
+const torus = (x, y, z, D, t, c, rx = 0, rz = 0) => part('torus', x, y, z, D, t, D, c, rx, 0, rz);
+function sub(x, z, s, ry, fn, y = 0) {
+  const saved = kit.M.clone();
+  const m = new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), new THREE.Quaternion().setFromAxisAngle(UP, ry), new THREE.Vector3(s, s, s));
+  kit.M.multiply(m); fn(); kit.M.copy(saved);
+}
+function nest(x, z, s, ry, name) { sub(x, z, s, ry, () => { const np = kit.noPad; kit.noPad = true; MODELS[name](); kit.noPad = np; }); }
+function pool(x, z, s = 1) {
+  const v = new THREE.Vector3(x, 0, z).applyMatrix4(kit.M);
+  const sc = new THREE.Vector3().setFromMatrixScale(kit.M).x;
+  kit.pools.push({ x: v.x, y: v.y, z: v.z, s: s * sc });
+}
+function buildKit() {
+  const groups = new Map();
+  for (const p of kit.parts) { const k = p.kind + (p.small ? '|s' : ''); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(p); }
+  for (const [key, arr] of groups) {
+    const kind = key.split('|')[0], small = key.endsWith('|s');
+    const mesh = new THREE.InstancedMesh(KINDS[kind], kind.startsWith('glow') ? glowMat : solidMat, arr.length);
+    const owners = new Array(arr.length), base = new Float32Array(arr.length * 3);
+    arr.forEach((p, i) => { mesh.setMatrixAt(i, p.m); mesh.setColorAt(i, p.c); owners[i] = p.owner; base[i * 3] = p.c.r; base[i * 3 + 1] = p.c.g; base[i * 3 + 2] = p.c.b; });
+    mesh.instanceMatrix.needsUpdate = true; mesh.instanceColor.needsUpdate = true;
+    mesh.castShadow = true; mesh.receiveShadow = true;
+    mesh.userData = { owners, base, kit: true };
+    mesh.computeBoundingSphere();
+    scene.add(mesh); kitMeshes.push(mesh); pickables.push(mesh);
+    if (small) smallMeshes.push(mesh);
+  }
+  kit.parts.length = 0;
+}
+
+/* =====================================================================
+   貼圖（全部用 canvas 即時畫）
+   ===================================================================== */
+function canvasTex(w, h, draw, repeat = true) {
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const g = c.getContext('2d'); draw(g, w, h);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+  if (repeat) { t.wrapS = t.wrapT = THREE.RepeatWrapping; }
+  t.anisotropy = 4; return t;
+}
+const groundTex = {};
+function makeGroundTextures() {
+  groundTex.grass = canvasTex(256, 256, (g) => {
+    g.fillStyle = '#86b852'; g.fillRect(0, 0, 256, 256);
+    for (let i = 0; i < 8; i += 2) { g.fillStyle = '#7cae49'; g.fillRect(i * 32, 0, 32, 256); }
+    for (let i = 0; i < 900; i++) { g.fillStyle = rng() < .5 ? 'rgba(255,255,220,.10)' : 'rgba(40,70,20,.08)'; g.fillRect(rng() * 256, rng() * 256, 2, 2 + rng() * 3); }
+  });
+  groundTex.tile = canvasTex(256, 256, (g) => {
+    g.fillStyle = '#eecac6'; g.fillRect(0, 0, 256, 256);
+    for (let y = 0; y < 8; y++) for (let x = -1; x < 8; x++) {
+      const ox = (y % 2) * 16; g.fillStyle = `rgba(255,255,255,${rng() * .12})`; g.fillRect(x * 32 + ox + 1, y * 32 + 1, 30, 30);
+    }
+    g.strokeStyle = '#d9a9ab'; g.lineWidth = 2;
+    for (let y = 0; y <= 8; y++) { g.beginPath(); g.moveTo(0, y * 32); g.lineTo(256, y * 32); g.stroke(); }
+    for (let y = 0; y < 8; y++) for (let x = 0; x <= 8; x++) { const ox = (y % 2) * 16; g.beginPath(); g.moveTo(x * 32 + ox, y * 32); g.lineTo(x * 32 + ox, y * 32 + 32); g.stroke(); }
+  });
+  groundTex.speck = canvasTex(256, 256, (g) => {
+    g.fillStyle = '#a7c47e'; g.fillRect(0, 0, 256, 256);
+    const cs = ['#9cbb70', '#b7d38f', '#8fb066', '#c4dca0'];
+    for (let i = 0; i < 1400; i++) { g.fillStyle = cs[i % 4]; g.beginPath(); g.arc(rng() * 256, rng() * 256, 1 + rng() * 1.8, 0, Math.PI * 2); g.fill(); }
+  });
+}
+
+/* =====================================================================
+   Shader：水、天空、協作線
+   ===================================================================== */
+const WATER_VS = `
+#include <common>
+#include <fog_pars_vertex>
+varying vec3 vW;
+void main(){
+  vec4 w = modelMatrix * vec4(position,1.0); vW = w.xyz;
+  vec4 mvPosition = viewMatrix * w;
+  gl_Position = projectionMatrix * mvPosition;
+  #include <fog_vertex>
+}`;
+const WATER_FS = `
+#include <common>
+#include <fog_pars_fragment>
+uniform float uTime; uniform vec3 uShallow; uniform vec3 uDeep; uniform vec2 uCenter; uniform float uSide; uniform float uNight;
+varying vec3 vW;
+void main(){
+  vec2 p = vW.xz;
+  float d = length(p - uCenter);
+  float w1 = sin(p.x*.35 + uTime*.40) * sin(p.y*.30 - uTime*.30);
+  float w2 = sin((p.x+p.y)*.6 - uTime*.55)*.5 + sin((p.x-p.y)*.9 + uTime*.35)*.5;
+  float k = smoothstep(7.0, 70.0, d);
+  vec3 col = mix(uShallow, uDeep, clamp(k*.9 + w1*.07 + w2*.05, 0.0, 1.0));
+  float sp = pow(max(0.0, sin(p.x*3.1 + uTime*1.3) * sin(p.y*2.7 - uTime*1.1)), 28.0);
+  col += sp * .10 * (1.0 - uNight*.7) * (1.0 - k);
+  if (uSide > .5) {
+    float t = clamp((vW.y + 1.1) / 1.75, 0.0, 1.0);
+    col = mix(uDeep*.78, uShallow*1.04, t) + w2*.012;
+  }
+  gl_FragColor = vec4(col, 1.0);
+  #include <tonemapping_fragment>
+  #include <colorspace_fragment>
+  #include <fog_fragment>
+}`;
+const SKY_VS = `varying vec3 vDir; void main(){ vDir = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`;
+const SKY_FS = `
+uniform vec3 uTop; uniform vec3 uHorizon; uniform vec3 uSunDir; uniform vec3 uSun; uniform float uNight;
+varying vec3 vDir;
+float hash(vec3 p){ return fract(sin(dot(p, vec3(127.1,311.7,74.7))) * 43758.5453); }
+void main(){
+  vec3 d = normalize(vDir);
+  vec3 c = mix(uHorizon, uTop, smoothstep(-.02, .55, d.y));
+  float s = max(dot(d, normalize(uSunDir)), 0.0);
+  c += uSun * pow(s, 18.0) * .35;
+  vec3 cell = floor(d * 180.0);
+  float n = hash(cell);
+  if (n > .9965 && d.y > .02) c += vec3(.95,.95,1.0) * uNight * (.55 + .45*hash(cell+3.1)) * smoothstep(.02,.2,d.y);
+  gl_FragColor = vec4(c, 1.0);
+  #include <colorspace_fragment>
+}`;
+const FLOW_VS = `uniform float uThick; varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position + normal * uThick, 1.0); }`;
+const FLOW_FS = `
+uniform float uTime; uniform float uLen; uniform float uStyle; uniform float uStatic; uniform float uOpacity; uniform vec3 uColor;
+varying vec2 vUv;
+void main(){
+  float u = vUv.x * uLen * 5.0 - uTime * 1.4 * (1.0 - uStatic);
+  float f = fract(u);
+  float style = uStatic > .5 ? 1.0 : uStyle;
+  if (style > .5 && style < 1.5 && f > .6) discard;
+  if (style > 1.5 && f > .3) discard;
+  vec3 c = uColor * (style < .5 ? (.82 + .3 * smoothstep(.0,.5,f) * smoothstep(1.0,.5,f)) : 1.0);
+  gl_FragColor = vec4(c, uOpacity);
+  #include <colorspace_fragment>
+}`;
+function makeWaterMaterial(side) {
+  return new THREE.ShaderMaterial({
+    uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, {
+      uTime: { value: 0 }, uShallow: { value: new THREE.Color('#a4d4da') }, uDeep: { value: new THREE.Color('#6fa9b8') },
+      uCenter: { value: new THREE.Vector2(center.x, center.z) }, uSide: { value: side ? 1 : 0 }, uNight: { value: 0 }
+    }]),
+    vertexShader: WATER_VS, fragmentShader: WATER_FS, fog: true, toneMapped: false
+  });
+}
+
+/* =====================================================================
+   日夜 keyframes：分鐘、skyTop、horizon、sunColor、sunI、hemiSky、hemiGround、hemiI、night、water
+   ===================================================================== */
+const KF_RAW = [
+  [0, '1e2c58', '3f4f80', 'b4c2ff', 1.15, '94a2d8', '64566a', 1.85, 1, '5a88b2'],
+  [300, '26365f', '4c5688', 'b8c4ff', 1.0, '96a4da', '66586c', 1.85, 1, '5c8ab4'],
+  [360, '7f8fc4', 'f6c3a6', 'ffb48a', 1.3, 'f3c6b5', '6b5a5a', 1.1, .55, '8fb7c4'],
+  [450, 'a9d1ea', 'fbe6d3', 'ffe2c4', 2.4, 'eaf2f6', '8a7a68', 1.25, 0, '9fcfd6'],
+  [720, '9fd0ec', 'f4eee3', 'fff1de', 2.9, 'eef6fa', '8f8270', 1.35, 0, 'a9d8db'],
+  [960, 'a6cfe6', 'f8e7d2', 'ffe3c0', 2.5, 'f1efe8', '8a7a66', 1.25, 0, '9fcbd2'],
+  [1065, '8b8fc4', 'f7b98f', 'ff9f6a', 1.8, 'f6d2bc', '7d6660', 1.2, .3, '93a9bd'],
+  [1140, '5a5e9e', 'd99aa6', 'ff9a7a', 1.3, 'c0b2e0', '655868', 1.35, .75, '6a7cab'],
+  [1260, '22325f', '445488', 'c0ccff', 1.2, '98a8dc', '685a6e', 1.9, 1, '5a88b2'],
+  [1440, '1e2c58', '3f4f80', 'b4c2ff', 1.15, '94a2d8', '64566a', 1.85, 1, '5a88b2']
+];
+let KF = [];
+const KS = {};
+function initKeyframes() {
+  const c = h => new THREE.Color('#' + h);
+  KF = KF_RAW.map(k => ({ m: k[0], top: c(k[1]), hor: c(k[2]), sun: c(k[3]), sunI: k[4], hs: c(k[5]), hg: c(k[6]), hi: k[7], night: k[8], water: c(k[9]) }));
+  ['top', 'hor', 'sun', 'hs', 'hg', 'water'].forEach(k => KS[k] = new THREE.Color());
+}
+function sampleKF(m) {
+  let i = 0; while (i < KF.length - 2 && m >= KF[i + 1].m) i++;
+  const a = KF[i], b = KF[i + 1], t = clamp((m - a.m) / (b.m - a.m), 0, 1);
+  ['top', 'hor', 'sun', 'hs', 'hg', 'water'].forEach(k => KS[k].copy(a[k]).lerp(b[k], t));
+  KS.sunI = lerp(a.sunI, b.sunI, t); KS.hi = lerp(a.hi, b.hi, t); KS.night = lerp(a.night, b.night, t);
+  return KS;
+}
+function segmentAt(m) {
+  return DATA.dayCycle.find(s => s.from < s.to ? (m >= s.from && m < s.to) : (m >= s.from || m < s.to)) || null;
+}
+const _white = { c: null };
+function applyTime() {
+  const m = S.minute, k = sampleKF(m);
+  sky.material.uniforms.uTop.value.copy(k.top);
+  sky.material.uniforms.uHorizon.value.copy(k.hor);
+  sky.material.uniforms.uSun.value.copy(k.sun);
+  sky.material.uniforms.uNight.value = k.night;
+  scene.fog.color.copy(k.hor);
+  sun.color.copy(k.sun); sun.intensity = k.sunI;
+  hemi.color.copy(k.hs); hemi.groundColor.copy(k.hg); hemi.intensity = k.hi;
+  S.night = k.night;
+  glowMat.emissiveIntensity = k.night * 3.2;
+  poolMat.opacity = k.night * .55;
+  if (!_white.c) _white.c = new THREE.Color('#ffffff');
+  for (const mat of [waterMat, sideMat]) {
+    mat.uniforms.uShallow.value.copy(k.water).lerp(_white.c, .06);
+    mat.uniforms.uDeep.value.copy(k.water).multiplyScalar(.72);
+    mat.uniforms.uNight.value = k.night;
+  }
+  for (const mt of mountains) mt.mat.color.copy(mt.base).lerp(k.hor, mt.k).multiplyScalar(1 - k.night * .25);
+  // 太陽方位：量化到 10 分鐘
+  const qm = Math.floor(m / 10) * 10;
+  if (qm !== S.lastQ) {
+    S.lastQ = qm;
+    const t = clamp((qm - 360) / 720, 0, 1), az = Math.PI * (.15 + .7 * t), el = .35 + Math.sin(t * Math.PI) * .75;
+    const dir = new THREE.Vector3(Math.cos(az) * Math.cos(el), Math.sin(el), .55 * Math.cos(el) + .35).normalize();
+    sun.position.copy(center).addScaledVector(dir, 40); sun.target.position.copy(center); sun.target.updateMatrixWorld();
+    sky.material.uniforms.uSunDir.value.copy(dir);
+  }
+  const seg = segmentAt(m);
+  if (seg !== S.seg) { S.seg = seg; recolor(); refreshLit(); }
+  const mm = Math.floor(m);
+  if (mm !== S.lastClock) {
+    S.lastClock = mm;
+    $('#clock').textContent = String(Math.floor(mm / 60)).padStart(2, '0') + ':' + String(mm % 60).padStart(2, '0');
+    $('#seg').textContent = seg ? tr(seg.name, seg.nameEn) : '';
+    document.querySelectorAll('[data-time]').forEach(b => {
+      const t = +b.dataset.time; b.classList.toggle('now', Math.abs(((m - t + 720 + 1440) % 1440) - 720) < 90);
+    });
+  }
+}
+function fmtTime(m) { m = Math.floor(m) % 1440; return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'); }
+
+/* =====================================================================
+   場景骨架：renderer、相機、控制、天空、水、光
+   ===================================================================== */
+function initRenderer() {
+  stage = $('#stage');
+  UP = new THREE.Vector3(0, 1, 0);
+  renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
+  if (!renderer.getContext()) throw new Error('WebGL context unavailable');
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, S.mobile ? 1.4 : 1.75));
+  renderer.setSize(stage.clientWidth, stage.clientHeight);
+  renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1;
+  renderer.domElement.setAttribute('tabindex', '0');
+  stage.appendChild(renderer.domElement);
+  labelRenderer = new CSS2DRenderer();
+  labelRenderer.setSize(stage.clientWidth, stage.clientHeight);
+  labelRenderer.domElement.id = 'labels';
+  stage.appendChild(labelRenderer.domElement);
+
+  scene = new THREE.Scene();
+  scene.fog = new THREE.Fog(0xf4eee3, 42, 150);
+  camera = new THREE.PerspectiveCamera(32, stage.clientWidth / stage.clientHeight, .3, 320);
+  controls = new OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true; controls.dampingFactor = .07;
+  // 平移：右鍵拖曳（或 Shift＋左鍵、雙指拖曳），沿地面移動；範圍由 clampPan() 限制
+  controls.enablePan = true; controls.screenSpacePanning = false; controls.panSpeed = .9;
+  controls.minPolarAngle = THREE.MathUtils.degToRad(25); controls.maxPolarAngle = THREE.MathUtils.degToRad(70);
+  controls.minDistance = 3; controls.maxDistance = 70;
+  controls.addEventListener('change', () => { S.dirty = true; });
+
+  // 島位置與城市中心
+  center = new THREE.Vector3();
+  DATA.islands.forEach(isl => { const p = axial(isl.q, isl.r); isl.pos = new THREE.Vector3(p.x, TOP, p.z); center.add(isl.pos); });
+  center.divideScalar(DATA.islands.length); center.y = TOP * .5; center.z += .6;
+  noise = new SimplexNoise({ random: mulberry32(99) });
+}
+// 平移範圍：所有島的外框再往外留一點邊，鏡頭目標超出就推回來（相機跟著平移，保持視角）
+const PAN = { minX: 0, maxX: 0, minZ: 0, maxZ: 0 };
+function setPanBounds() {
+  const xs = DATA.islands.map(t => t.pos.x), zs = DATA.islands.map(t => t.pos.z), m = 2;
+  Object.assign(PAN, { minX: Math.min(...xs) - m, maxX: Math.max(...xs) + m, minZ: Math.min(...zs) - m, maxZ: Math.max(...zs) + m });
+}
+function clampPan() {
+  const t = controls.target, x = clamp(t.x, PAN.minX, PAN.maxX), z = clamp(t.z, PAN.minZ, PAN.maxZ);
+  if (x === t.x && z === t.z) return false;
+  camera.position.x += x - t.x; camera.position.z += z - t.z; t.x = x; t.z = z;
+  return true;
+}
+function initEnvironment() {
+  setPanBounds();
+  // 天空
+  sky = new THREE.Mesh(new THREE.SphereGeometry(170, 40, 20), new THREE.ShaderMaterial({
+    uniforms: { uTop: { value: new THREE.Color() }, uHorizon: { value: new THREE.Color() }, uSunDir: { value: new THREE.Vector3(0, 1, 0) }, uSun: { value: new THREE.Color() }, uNight: { value: 0 } },
+    vertexShader: SKY_VS, fragmentShader: SKY_FS, side: THREE.BackSide, depthWrite: false, fog: false, toneMapped: false
+  }));
+  sky.position.set(center.x, 0, center.z); sky.renderOrder = -10; sky.frustumCulled = false;
+  scene.add(sky);
+  // 水
+  waterMat = makeWaterMaterial(false); sideMat = makeWaterMaterial(true);
+  const water = new THREE.Mesh(new THREE.CircleGeometry(160, 64).rotateX(-Math.PI / 2), waterMat);
+  water.position.set(center.x, WATER_Y, center.z); scene.add(water);
+  // 光
+  hemi = new THREE.HemisphereLight(0xeef6fa, 0x8f8270, 1.3); scene.add(hemi);
+  sun = new THREE.DirectionalLight(0xfff1de, 2.8);
+  sun.castShadow = true;
+  const sm = S.mobile ? 1024 : 2048; sun.shadow.mapSize.set(sm, sm);
+  Object.assign(sun.shadow.camera, { left: -20, right: 20, top: 22, bottom: -22, near: 1, far: 90 });
+  sun.shadow.camera.updateProjectionMatrix();
+  sun.shadow.bias = -.0006; sun.shadow.normalBias = .045; sun.shadow.radius = 3;
+  scene.add(sun); scene.add(sun.target);
+  fill = new THREE.DirectionalLight(0xbfd6ff, .35); fill.position.set(center.x - 30, 20, center.z - 25); scene.add(fill);
+  // 材質
+  solidMat = new THREE.MeshStandardMaterial({ roughness: .78, metalness: 0 });
+  glowMat = new THREE.MeshStandardMaterial({ roughness: .6, metalness: 0, emissive: new THREE.Color('#ffc777'), emissiveIntensity: 0 });
+}
+
+/* =====================================================================
+   六角島：島面、側壁、圖案帶、路緣、步道環、淺水環、泡沫環
+   ===================================================================== */
+function hexShape(rad, holeRad) {
+  const sh = new THREE.Shape();
+  for (let k = 0; k < 6; k++) { const a = Math.PI / 6 + k * Math.PI / 3; const x = Math.cos(a) * rad, y = Math.sin(a) * rad; k ? sh.lineTo(x, y) : sh.moveTo(x, y); }
+  sh.closePath();
+  if (holeRad) {
+    const h = new THREE.Path();
+    for (let k = 5; k >= 0; k--) { const a = Math.PI / 6 + k * Math.PI / 3; const x = Math.cos(a) * holeRad, y = Math.sin(a) * holeRad; k === 5 ? h.moveTo(x, y) : h.lineTo(x, y); }
+    h.closePath(); sh.holes.push(h);
+  }
+  return sh;
+}
+const hexRingGeo = (rIn, rOut, h) => new THREE.ExtrudeGeometry(hexShape(rOut, rIn), { depth: h, bevelEnabled: false }).rotateX(-Math.PI / 2);
+const flatRingGeo = (rIn, rOut) => new THREE.ShapeGeometry(hexShape(rOut, rIn)).rotateX(-Math.PI / 2);
+function mergedMesh(geos, mat) { const g = mergeGeometries(geos); geos.forEach(x => x.dispose()); return new THREE.Mesh(g, mat); }
+
+function buildIslands() {
+  makeGroundTextures();
+  const tops = { grass: [], tile: [], speck: [] }, sides = [], bands = [], curbs = [], paths = [], shallows = [], foams = [];
+  DATA.islands.forEach((isl, i) => {
+    const { x, z } = isl.pos;
+    const g = new THREE.CircleGeometry(R - .05, 6).rotateZ(Math.PI / 6).rotateX(-Math.PI / 2).translate(x, TOP, z);
+    const pos = g.attributes.position, uv = g.attributes.uv;
+    for (let k = 0; k < pos.count; k++) uv.setXY(k, pos.getX(k) / 2.2, pos.getZ(k) / 2.2);
+    tops[isl.ground].push(g);
+    const sideH = TOP + 1.1;
+    sides.push(new THREE.CylinderGeometry(R, R + .03, sideH, 6, 1, true).translate(x, TOP - sideH / 2, z));
+    const b = new THREE.CylinderGeometry(R + .006, R + .006, .16, 6, 1, true).translate(x, TOP - .08, z);
+    const buv = b.attributes.uv;
+    for (let k = 0; k < buv.count; k++) buv.setXY(k, buv.getX(k) * 6, (11 - i + .06 + buv.getY(k) * .88) / 12);
+    bands.push(b);
+    curbs.push(hexRingGeo(1.94, 2.025, .045).translate(x, TOP, z));
+    paths.push(hexRingGeo(1.66, 1.94, .014).translate(x, TOP, z));
+    shallows.push(flatRingGeo(R + .02, R + .7).translate(x, WATER_Y + .004, z));
+    foams.push(flatRingGeo(R + .02, R + .18).translate(x, WATER_Y + .008, z));
+  });
+  for (const k of Object.keys(tops)) {
+    if (!tops[k].length) continue;
+    const m = mergedMesh(tops[k], new THREE.MeshStandardMaterial({ map: groundTex[k], roughness: .92, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 }));
+    m.receiveShadow = true; m.userData.islandTop = true; scene.add(m); islandTopMeshes.push(m); pickables.push(m);
+  }
+  const sideMesh = mergedMesh(sides, sideMat); sideMesh.userData.islandTop = true; scene.add(sideMesh); pickables.push(sideMesh);
+  // 圖案帶 atlas：每島一列
+  const bandTex = canvasTex(256, 384, (g) => {
+    DATA.islands.forEach((isl, i) => {
+      const y0 = i * 32; g.fillStyle = isl.accent; g.fillRect(0, y0, 256, 32);
+      g.fillStyle = 'rgba(255,248,244,.88)';
+      for (let x = 0; x < 256; x += 32) { g.beginPath(); g.moveTo(x, y0 + 30); g.lineTo(x + 16, y0 + 8); g.lineTo(x + 32, y0 + 30); g.closePath(); g.fill(); }
+      g.fillStyle = 'rgba(33,29,29,.18)'; for (let x = 16; x < 256; x += 32) { g.beginPath(); g.arc(x + 16, y0 + 12, 3, 0, Math.PI * 2); g.fill(); }
+      g.fillStyle = 'rgba(255,255,255,.5)'; g.fillRect(0, y0 + 1, 256, 2);
+    });
+  });
+  bandTex.wrapT = THREE.ClampToEdgeWrapping;
+  scene.add(mergedMesh(bands, new THREE.MeshStandardMaterial({ map: bandTex, roughness: .85, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 })));
+  const curb = mergedMesh(curbs, new THREE.MeshStandardMaterial({ color: C.curb, roughness: .85 })); curb.receiveShadow = true; curb.castShadow = true; scene.add(curb);
+  const path = mergedMesh(paths, new THREE.MeshStandardMaterial({ color: C.path, roughness: .9, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }));
+  path.receiveShadow = true; scene.add(path);
+  const sh = mergedMesh(shallows, new THREE.MeshBasicMaterial({ color: '#dff4ef', transparent: true, opacity: .32, depthWrite: false, toneMapped: false }));
+  sh.renderOrder = 1; scene.add(sh);
+  const fm = mergedMesh(foams, new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: .55, depthWrite: false, toneMapped: false }));
+  fm.renderOrder = 2; scene.add(fm);
+}
+
+/* =====================================================================
+   路網：每島 12 節點（步道六角形 6 頂點 + 6 邊中點），橋連相鄰島
+   ===================================================================== */
+const NODES = [], ADJ = [], BRIDGES = new Map();
+const hexDist = (a, b) => (Math.abs(a.q - b.q) + Math.abs(a.r - b.r) + Math.abs(a.q + a.r - b.q - b.r)) / 2;
+function buildNetwork() {
+  DATA.islands.forEach(isl => {
+    for (let k = 0; k < 12; k++) {
+      const mid = k % 2 === 0, a = mid ? (k / 2) * Math.PI / 3 : (k - 1) / 2 * Math.PI / 3 + Math.PI / 6;
+      const rad = mid ? 1.8 * SQ3 / 2 : 1.8;
+      NODES.push({ isl: isl.index, k, p: new THREE.Vector3(isl.pos.x + Math.cos(a) * rad, TOP + .014, isl.pos.z + Math.sin(a) * rad) });
+      ADJ.push([]);
+    }
+    for (let k = 0; k < 12; k++) {
+      const a = isl.index * 12 + k, b = isl.index * 12 + (k + 1) % 12, w = NODES[a].p.distanceTo(NODES[b].p);
+      ADJ[a].push([b, w]); ADJ[b].push([a, w]);
+    }
+  });
+  const L = DATA.islands;
+  for (let i = 0; i < L.length; i++) for (let j = i + 1; j < L.length; j++) {
+    if (hexDist(L[i], L[j]) !== 1) continue;
+    const ang = Math.atan2(L[j].pos.z - L[i].pos.z, L[j].pos.x - L[i].pos.x);
+    const m = ((Math.round(ang / (Math.PI / 3)) % 6) + 6) % 6;
+    const a = i * 12 + m * 2, b = j * 12 + ((m + 3) % 6) * 2;
+    const w = NODES[a].p.distanceTo(NODES[b].p);
+    ADJ[a].push([b, w]); ADJ[b].push([a, w]);
+    BRIDGES.set(Math.min(a, b) + '-' + Math.max(a, b), { a, b, h: rr(.04, .1), i, j });
+  }
+}
+function dijkstra(a, b) {
+  const n = NODES.length, dist = new Float64Array(n).fill(Infinity), prev = new Int32Array(n).fill(-1), done = new Uint8Array(n);
+  dist[a] = 0;
+  for (;;) {
+    let u = -1, best = Infinity;
+    for (let i = 0; i < n; i++) if (!done[i] && dist[i] < best) { best = dist[i]; u = i; }
+    if (u < 0 || u === b) break;
+    done[u] = 1;
+    for (const [v, w] of ADJ[u]) if (dist[u] + w < dist[v]) { dist[v] = dist[u] + w; prev[v] = u; }
+  }
+  const path = []; for (let v = b; v !== -1; v = prev[v]) path.unshift(v);
+  return path;
+}
+const archY = (t, h) => TOP + .044 + Math.sin(t * Math.PI) * h;
+function routePoints(fromId, toId) {
+  const path = dijkstra(ISL.get(fromId).index * 12 + 3, ISL.get(toId).index * 12 + 3);
+  const pts = [];
+  for (let i = 0; i < path.length; i++) {
+    const n = NODES[path[i]];
+    if (i > 0) {
+      const pn = NODES[path[i - 1]];
+      if (pn.isl !== n.isl) {
+        const br = BRIDGES.get(Math.min(path[i - 1], path[i]) + '-' + Math.max(path[i - 1], path[i]));
+        for (let s = 1; s < 8; s++) { const t = s / 8; const p = pn.p.clone().lerp(n.p, t); p.y = archY(t, br.h); pts.push(p); }
+      }
+    }
+    pts.push(n.p.clone());
+  }
+  return pts;
+}
+function buildBridges() {
+  kit.owner = null;
+  for (const br of BRIDGES.values()) {
+    const A = NODES[br.a].p, B = NODES[br.b].p;
+    const dx = B.x - A.x, dz = B.z - A.z, len = Math.hypot(dx, dz), yaw = -Math.atan2(dz, dx);
+    for (let s = 0; s < 9; s++) {
+      const t = (s + .5) / 9, x = A.x + dx * t, z = A.z + dz * t, y = archY(t, br.h) - .03;
+      const slope = Math.atan(Math.cos(t * Math.PI) * Math.PI * br.h / len);
+      part('box', x, y, z, len / 9 * 1.04, .03, .34, C.wood, 0, yaw, slope, 'YZX');
+      for (const side of [-1, 1]) {
+        const ox = side * .17 * Math.cos(yaw + Math.PI / 2), oz = side * .17 * -Math.sin(yaw + Math.PI / 2);
+        part('box', x + ox, y + .1, z + oz, len / 9 * 1.04, .018, .02, C.cream, 0, yaw, slope, 'YZX');
+      }
+    }
+    for (const P of [A, B]) for (const side of [-1, 1]) {
+      const ox = side * .17 * Math.cos(yaw + Math.PI / 2), oz = side * .17 * -Math.sin(yaw + Math.PI / 2);
+      cyl(P.x + ox, TOP, P.z + oz, .035, .15, C.cream);
+    }
+  }
+}
+
+/* =====================================================================
+   建模小工具
+   ===================================================================== */
+const P = .035; // 底座高度
+const pad = (c = '#e9e1d3', w = .98, d = .98) => { if (!kit.noPad) rbox(0, 0, 0, w, P, d, c); };
+function person(x, z, c, s = 1, y = 0) { cyl(x, y, z, .07 * s, .1 * s, c); sph(x, y + .095 * s, z, .075 * s, pick(C.skin)); }
+function shrub(x, z, s = 1, y = 0) { ico(x, y, z, .16 * s, .12 * s, pick([C.p1, C.p2, C.p3])); }
+function lamp(x, z, h = .5) { cyl(x, 0, z, .028, h, C.ink); box(x, h - .012, z, .05, .022, .05, C.ink); gsph(x, h - .055, z, .07, '#fff6e0'); pool(x, z, 1.05); }
+function building(x, z, w, d, floors, wall = C.white, o = {}) {
+  const fh = o.fh || .16, base = .045, H = base + floors * fh + .03, win = o.win || C.win;
+  box(x, 0, z, w, H, d, wall);
+  for (let f = 0; f < floors; f++) {
+    const y = base + f * fh + fh * .3;
+    gbox(x, y, z, w + .014, fh * .38, d - .07, win); gbox(x, y, z, w - .07, fh * .38, d + .014, win);
+  }
+  box(x, H, z, w + .03, .022, d + .03, o.roof || C.roof);
+  if (!o.noEquip) { box(x - w * .22, H + .022, z - d * .1, Math.min(.16, w * .3), .06, Math.min(.12, d * .35), C.gray); cyl(x + w * .24, H + .022, z + d * .12, .07, .05, C.gray); }
+  box(x, 0, z + d / 2 + .004, Math.min(.14, w * .3), .1, .012, C.glass);
+  pool(x, z + d / 2 + .12, .55);
+  return H;
+}
+function tree(x, z, type = 'round', s = 1, y = 0) {
+  const tk = '#7a5a40';
+  switch (type) {
+    case 'palm': {
+      for (let i = 0; i < 4; i++) cyl(x + i * .014 * s, y + i * .17 * s, z, (.075 - .009 * i) * s, .18 * s, '#a08060');
+      const tx = x + .05 * s, ty = y + .7 * s;
+      for (let k = 0; k < 7; k++) { const a = k / 7 * Math.PI * 2; part('box', tx + Math.cos(a) * .12 * s, ty - .03 * s, z + Math.sin(a) * .12 * s, .3 * s, .02 * s, .085 * s, k % 2 ? '#5f8c45' : '#6f9a52', 0, -a, -.38); }
+      sph(tx, ty - .05 * s, z, .08 * s, '#7a6040'); break;
+    }
+    case 'pine':
+      cyl(x, y, z, .07 * s, .25 * s, tk); cone(x, y + .18 * s, z, .52 * s, .4 * s, '#4f7a3a'); cone(x, y + .4 * s, z, .4 * s, .34 * s, '#5a8544'); cone(x, y + .6 * s, z, .26 * s, .3 * s, '#628d4b'); break;
+    case 'cypress':
+      cyl(x, y, z, .06 * s, .15 * s, tk); ico(x, y + .1 * s, z, .3 * s, .85 * s, '#4a7040'); ico(x + .05 * s, y + .45 * s, z, .2 * s, .4 * s, '#557b47'); break;
+    case 'sakura':
+      cyl(x, y, z, .07 * s, .32 * s, '#6e4a3a'); ico(x, y + .28 * s, z, .62 * s, .42 * s, C.sakura);
+      ico(x + .15 * s, y + .4 * s, z + .05 * s, .36 * s, .3 * s, '#f2b5c6'); ico(x - .14 * s, y + .38 * s, z - .06 * s, .38 * s, .3 * s, '#f9d3df'); break;
+    case 'banyan':
+      cyl(x, y, z, .12 * s, .34 * s, '#6b5040');
+      for (let k = 0; k < 3; k++) cyl(x + (k - 1) * .13 * s, y, z + .1 * s, .02 * s, .3 * s, '#7d6250');
+      ico(x, y + .28 * s, z, .85 * s, .4 * s, '#55803f'); ico(x + .22 * s, y + .36 * s, z - .08 * s, .45 * s, .32 * s, '#5f8c45'); ico(x - .2 * s, y + .38 * s, z + .06 * s, .45 * s, .3 * s, '#4f7a3a'); break;
+    case 'camphor':
+      cyl(x, y, z, .08 * s, .3 * s, tk); ico(x, y + .26 * s, z, .6 * s, .5 * s, '#6f9a52');
+      ico(x + .16 * s, y + .42 * s, z, .38 * s, .34 * s, '#7da85c'); ico(x - .14 * s, y + .44 * s, z + .04 * s, .36 * s, .32 * s, '#679449'); break;
+    case 'sweetgum':
+      cyl(x, y, z, .07 * s, .3 * s, tk); ico(x, y + .22 * s, z, .46 * s, .62 * s, '#86a84e'); ico(x, y + .6 * s, z, .28 * s, .3 * s, '#9ab55a'); break;
+    case 'flame':
+      cyl(x, y, z, .08 * s, .3 * s, tk); ico(x, y + .28 * s, z, .82 * s, .26 * s, '#6f9a52');
+      for (let k = 0; k < 6; k++) { const a = k / 6 * Math.PI * 2; sph(x + Math.cos(a) * .27 * s, y + .44 * s, z + Math.sin(a) * .24 * s, .1 * s, '#e0553f'); } break;
+    default:
+      cyl(x, y, z, .06 * s, .22 * s, tk); ico(x, y + .18 * s, z, .4 * s, .4 * s, pick([C.p1, C.p2, C.p3]));
+  }
+}
+
+/* =====================================================================
+   細項 archetype（單位空間：底面 ±0.5、高 0–1.5），由 DATA 的 model 欄位決定
+   ===================================================================== */
+const MODELS = {
+  school() { pad(); building(0, -.1, .88, .5, 3, C.white); tree(.36, .3, 'round', .42); shrub(-.34, .32, 1.2, P); shrub(-.16, .35, 1, P); },
+  brick() { pad(); building(0, -.08, .84, .52, 3, C.brick, { win: '#f2e6d8' }); box(0, P, .3, .3, .05, .08, C.stone); tree(-.37, .32, 'round', .4); },
+  tower() {
+    pad('#e8dccb'); box(0, P, 0, .42, .08, .42, C.stone); box(0, P + .08, 0, .3, .95, .3, C.white);
+    for (let f = 0; f < 4; f++) gbox(0, P + .2 + f * .16, 0, .312, .06, .12, C.win);
+    part('cyl', 0, P + .86, .15, .2, .025, .2, C.cream, Math.PI / 2); part('torus', 0, P + .86, .148, .23, .03, .23, C.coral, Math.PI / 2);
+    box(0, P + .86, .178, .014, .075, .008, C.ink); box(0, P + .855, .178, .06, .012, .008, C.ink);
+    hip(0, P + 1.03, 0, .4, .3, .4, C.coral); sph(0, P + 1.3, 0, .05, C.yellow); lamp(.36, .3, .4);
+  },
+  pavilion() {
+    pad('#e8dccb');
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) cyl(sx * .3, P, sz * .24, .05, .42, C.wood);
+    box(0, P + .42, 0, .72, .035, .6, C.wood); hip(0, P + .455, 0, .86, .26, .72, C.teal);
+    box(0, P, 0, .42, .1, .13, C.wood); gsph(0, P + .36, 0, .07); pool(0, 0, .8);
+  },
+  stall() {
+    pad('#f0e3cf');
+    rbox(-.08, P + .06, 0, .52, .26, .3, C.cream); gbox(-.08, P + .2, .148, .4, .06, .012, C.yellow);
+    for (const sx of [-.26, .1]) part('cyl', sx, P + .06, .15, .12, .03, .12, C.ink, Math.PI / 2);
+    for (const sx of [-.32, .16]) for (const sz of [-.14, .14]) cyl(sx, P + .32, sz, .02, .2, C.ink);
+    for (let i = 0; i < 5; i++) box(-.31 + i * .115, P + .52, 0, .115, .03, .38, i % 2 ? C.cream : C.coral);
+    person(-.08, -.26, C.aqua);
+    cyl(.33, P, .26, .17, .1, C.wood); cyl(.33, P, .26, .016, .4, C.ink); cone(.33, P + .36, .26, .34, .12, C.yellow);
+    person(.3, .02, C.pink, .9); pool(-.08, .25, .7);
+  },
+  classroom() {
+    box(0, 0, 0, .98, .04, .9, '#e9dcc6'); box(0, .04, -.42, .98, .4, .04, C.white);
+    box(0, .15, -.398, .56, .2, .012, '#2f5a48'); box(0, .14, -.394, .6, .012, .016, C.wood);
+    gbox(.4, .2, -.396, .12, .14, .012, C.win); gbox(-.4, .2, -.396, .12, .14, .012, C.win);
+    person(-.3, -.27, C.ink);
+    for (let r = 0; r < 2; r++) for (let c = 0; c < 3; c++) {
+      const x = -.3 + c * .3, z = -.06 + r * .27;
+      box(x, .04, z, .2, .1, .12, C.wood); person(x, z + .13, pick([C.aqua, C.pink, C.yellow, C.blue, C.coral]), .82, .04);
+    }
+  },
+  clinic() {
+    pad(); building(0, -.08, .84, .5, 2, C.white, { win: '#9cc4c4', fh: .2 });
+    box(0, .3, .176, .18, .05, .012, C.teal); box(0, .235, .176, .05, .18, .012, C.teal);
+    rbox(.26, P + .02, .33, .3, .13, .15, C.white); box(.26, P + .08, .33, .31, .025, .155, C.teal);
+    for (const x of [.16, .36]) part('cyl', x, P + .03, .4, .06, .02, .06, C.ink, Math.PI / 2);
+  },
+  busstop() {
+    box(0, 0, .16, 1, .012, .36, C.road);
+    for (let i = 0; i < 5; i++) box(-.4 + i * .2, .012, .16, .1, .004, .02, C.white);
+    box(0, 0, -.2, 1, .03, .3, C.path);
+    cyl(-.38, .03, -.3, .025, .32, C.ink); cyl(-.02, .03, -.3, .025, .32, C.ink);
+    box(-.2, .35, -.26, .46, .025, .2, C.teal); box(-.2, .03, -.32, .36, .06, .08, C.wood); gbox(-.2, .12, -.345, .3, .14, .012, '#cfe3ea');
+    cyl(.32, .03, -.12, .02, .4, C.ink); gbox(.32, .38, -.12, .1, .1, .02, C.yellow);
+    rbox(.04, .045, .17, .7, .21, .24, C.aqua); gbox(.04, .15, .17, .68, .065, .246, '#d8eef0'); box(.04, .255, .17, .5, .03, .16, C.white);
+    for (const x of [-.2, .26]) { part('cyl', x, .055, .285, .09, .03, .09, C.ink, Math.PI / 2); part('cyl', x, .055, .025, .09, .03, .09, C.ink, Math.PI / 2); }
+    person(-.28, -.18, C.pink, .8, .03); pool(-.2, -.2, .7);
+  },
+  bikes() {
+    pad('#e8dccb'); box(0, P, -.06, .92, .02, .04, C.ink);
+    for (let i = 0; i < 5; i++) {
+      const x = -.36 + i * .18;
+      cyl(x, P, -.06, .05, .16, C.yellow);
+      for (const z of [.02, .24]) part('torus', x + .008, P + .07, z, .13, .016, .13, C.ink, 0, 0, Math.PI / 2);
+      box(x, P + .08, .13, .016, .016, .22, C.yellow); box(x, P + .14, .07, .03, .012, .05, C.ink);
+      box(x, P + .15, .21, .1, .012, .012, C.ink); rbox(x, P + .11, .27, .07, .05, .06, C.yellow);
+    }
+    cyl(.44, P, .42, .03, .45, C.ink); gbox(.44, P + .4, .42, .1, .1, .02, C.yellow);
+  },
+  signal() {
+    box(0, 0, 0, 1, .015, 1, C.road);
+    for (let i = 0; i < 6; i++) box(-.375 + i * .15, .015, .02, .08, .004, .46, C.white);
+    box(0, 0, -.42, 1, .04, .16, C.path); box(0, 0, .42, 1, .04, .16, C.path);
+    cyl(.4, .04, -.42, .03, .5, C.ink); box(.4, .38, -.42, .08, .18, .07, C.ink);
+    gsph(.4, .5, -.385, .045, '#e2574c'); gsph(.4, .45, -.385, .045, C.yellow); gsph(.4, .4, -.385, .045, '#7fd38a');
+    person(-.12, .05, C.coral, .9, .015); person(.12, -.08, C.blue, .9, .015);
+    cyl(-.4, .04, .42, .07, .32, C.coral); gsph(-.4, .35, .42, .075); pool(-.4, .42, .6);
+  },
+  coin() {
+    pad('#efe2c8');
+    for (let i = 0; i < 5; i++) cyl(-.24, P + i * .05, .14, .26, .045, i % 2 ? '#e8c36a' : '#d9b45a');
+    for (let i = 0; i < 3; i++) cyl(.0, P + i * .05, .3, .24, .045, '#e8c36a');
+    box(.2, P, -.08, .32, .06, .14, C.stone);
+    part('cyl', .2, P + .32, -.12, .52, .07, .52, '#e8c36a', Math.PI / 2); part('torus', .2, P + .32, -.06, .4, .03, .4, '#c9a24a', Math.PI / 2);
+    box(.2, P + .22, -.045, .06, .2, .02, '#c9a24a');
+  },
+  clock() {
+    pad('#e8dccb'); box(0, P, -.02, .5, .08, .22, C.stone);
+    part('cyl', 0, P + .4, -.06, .6, .08, .6, C.cream, Math.PI / 2); part('torus', 0, P + .4, -.07, .66, .12, .66, C.coral, Math.PI / 2);
+    for (let k = 0; k < 12; k++) { const a = k / 12 * Math.PI * 2; box(Math.cos(a) * .25, P + .4 + Math.sin(a) * .25 - .01, .022, .025, .025, .01, C.ink); }
+    box(0, P + .4, .024, .026, .2, .012, C.ink); box(.07, P + .395, .024, .14, .026, .012, C.ink); sph(0, P + .385, .02, .04, C.coral);
+  },
+  book() {
+    pad('#efe2c8');
+    box(0, P, -.05, .56, .26, .4, C.stone); box(0, P + .26, -.05, .6, .03, .44, C.cream);
+    const y = P + .29;
+    part('box', 0, y, -.05, .8, .04, .5, C.coral, -.38, 0, 0);
+    part('rbox', -.19, y + .03, -.06, .38, .05, .46, C.cream, -.38, 0, -.16, 'YXZ');
+    part('rbox', .19, y + .03, -.06, .38, .05, .46, C.cream, -.38, 0, .16, 'YXZ');
+    part('box', 0, y + .02, -.06, .02, .07, .48, '#e9dcc6', -.38, 0, 0);
+    [[C.blue, .1], [C.aqua, .08], [C.yellow, .09]].forEach(([c, h], i) => box(.34, P + i * .09, .32, .26 - i * .03, .085, .18 - i * .02, c, i * .2));
+  },
+  globe() {
+    pad('#e8dccb'); cyl(0, P, 0, .36, .05, C.wood); cyl(0, P + .05, 0, .04, .12, C.ink);
+    const cy = P + .44; sph(0, cy - .28, 0, .56, '#58a6a6');
+    [[.4, .6], [1.6, .2], [2.6, .9], [3.8, .4], [5, .7], [.9, 1.3]].forEach(([a, b]) => {
+      const x = Math.cos(a) * Math.sin(b) * .27, y = Math.cos(b) * .27, z = Math.sin(a) * Math.sin(b) * .27;
+      ico(x, cy + y - .04, z, .16, .08, C.p1);
+    });
+    part('torus', 0, cy, 0, .66, .03, .66, C.coral, 0, 0, Math.PI / 2 - .4);
+  },
+  antenna() {
+    pad('#e0dbd2'); const H = 1.2;
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) part('cyl', sx * .17, P, sz * .17, .03, H, .03, C.gray, -sz * .13, 0, sx * .13);
+    for (let l = 0; l < 4; l++) {
+      const y = P + .14 + l * .27, w = .32 * (1 - l * .23);
+      for (const s of [-1, 1]) { box(0, y, s * w / 2, w, .02, .02, C.gray); box(s * w / 2, y, 0, .02, .02, w, C.gray); }
+    }
+    cyl(0, P + H - .05, 0, .04, .18, C.gray); gsph(0, P + H + .12, 0, .07, C.coral);
+    part('dome', .02, P + .85, 0, .24, .08, .24, C.white, 0, 0, -Math.PI / 2);
+    box(.32, P, .3, .24, .16, .2, C.white); gbox(.32, P + .07, .3, .25, .04, .14, C.win);
+  },
+  solar() {
+    pad('#e0dbd2');
+    for (let r = 0; r < 2; r++) for (let c = 0; c < 3; c++) {
+      const x = -.3 + c * .3, z = -.18 + r * .36;
+      cyl(x, P, z + .05, .03, .12, C.gray); part('box', x, P + .1, z, .26, .02, .3, '#35557f', -.45, 0, 0);
+    }
+    box(.42, P, .42, .1, .12, .08, C.white);
+  },
+  radar() {
+    pad('#e0dbd2'); box(0, P, 0, .5, .2, .5, C.gray); box(0, P + .2, 0, .54, .02, .54, C.white);
+    sph(0, P + .2, 0, .5, '#fbfbf8'); gbox(0, P + .08, .252, .3, .05, .01, C.win);
+    cyl(.38, P, .38, .02, .3, C.ink); box(.38, P + .3, .38, .08, .06, .08, C.white);
+  },
+  brook() {
+    pad('#8fbf5a'); box(0, 0, 0, 1, P + .012, .34, '#7cc4d0');
+    for (const s of [-1, 1]) box(0, 0, s * .2, 1, P + .03, .06, C.stone);
+    for (let i = 0; i < 7; i++) {
+      const t = (i + .5) / 7, z = -.26 + t * .52, y = P + .03 + Math.sin(t * Math.PI) * .1;
+      part('box', 0, y, z, .22, .025, .08, C.wood, -Math.atan(Math.cos(t * Math.PI) * Math.PI * .1 / .52), 0, 0);
+    }
+    for (let i = 0; i < 8; i++) for (const s of [-1, 1]) sph(-.45 + i * .13, P + .03, s * .27, .065, i % 2 ? '#d9483b' : '#e8604f');
+    for (let i = 0; i < 4; i++) cyl(-.4 + i * .27, P, -.06 + (i % 2) * .1, .012, .14, '#71806a');
+    lamp(.42, .42, .35);
+  },
+  court() {
+    box(0, 0, 0, .98, .025, .7, '#5d9b6a'); box(0, .025, 0, .78, .006, .44, C.track);
+    for (const s of [-1, 1]) { box(0, .031, s * .22, .78, .004, .012, '#ffffff'); box(s * .39, .031, 0, .012, .004, .44, '#ffffff'); }
+    box(0, .031, 0, .5, .004, .01, '#ffffff');
+    box(0, .03, 0, .012, .075, .5, '#f2f1ec'); for (const s of [-1, 1]) cyl(0, .03, s * .26, .02, .09, C.ink);
+    box(0, .025, -.345, .98, .18, .012, '#71806a');
+    for (const sx of [-1, 1]) { cyl(sx * .47, .025, -.33, .025, .5, C.ink); gbox(sx * .47, .5, -.31, .1, .04, .06, '#fff3d6'); }
+    pool(0, 0, .9);
+  },
+  volley() {
+    box(0, 0, 0, .98, .03, .7, '#ead8ad');
+    for (const s of [-1, 1]) { box(0, .03, s * .26, .8, .004, .012, '#ffffff'); box(s * .4, .03, 0, .012, .004, .52, '#ffffff'); }
+    box(0, .18, 0, .012, .06, .56, '#f2f1ec'); for (const s of [-1, 1]) cyl(0, .03, s * .29, .025, .24, C.ink);
+    sph(.2, .03, .1, .06, C.yellow); person(-.25, -.1, C.coral, .9, .03); person(.28, .14, C.aqua, .9, .03);
+    tree(.42, -.28, 'palm', .45, .03);
+  },
+  basket() {
+    box(0, 0, 0, .98, .025, .8, '#c9ccd1'); box(0, .025, 0, .88, .004, .7, C.track);
+    box(0, .03, -.24, .26, .003, .22, C.coral); torus(0, .029, 0, .22, .004, '#ffffff');
+    cyl(0, .025, -.42, .035, .42, C.ink); box(0, .36, -.4, .22, .14, .014, '#ffffff'); torus(0, .335, -.35, .1, .012, C.coral);
+    sph(.15, .03, .1, .06, C.coral); person(-.2, .05, C.yellow, .9, .025); person(.22, -.12, C.blue, .9, .025);
+    pool(0, 0, .9);
+  },
+  garden() {
+    pad('#e8dccb');
+    [[-.22, -.18, .4, .3], [.22, -.18, .4, .3], [0, .24, .8, .26]].forEach(([x, z, w, d]) => {
+      rbox(x, P, z, w, .08, d, C.stone); box(x, P + .07, z, w - .05, .01, d - .05, '#7a5a40');
+      for (let i = 0; i < Math.round(w * d * 90); i++) { const fx = x + rr(-w / 2 + .05, w / 2 - .05), fz = z + rr(-d / 2 + .05, d / 2 - .05); ico(fx, P + .08, fz, .06, .05, C.p2); sph(fx, P + .11, fz, .055, pick(FLOWERS)); }
+    });
+    tree(.0, -.02, 'round', .38, P); person(.4, .02, C.green, .85, P);
+  },
+  sakura() {
+    pad('#e9d9d3'); tree(-.22, -.16, 'sakura', .6, P); tree(.24, -.06, 'sakura', .55, P);
+    box(.22, P, .32, .28, .06, .1, C.wood); box(-.24, P, .28, .28, .006, .22, C.coral); box(-.24, P + .004, .28, .14, .006, .11, C.cream);
+    for (let i = 0; i < 12; i++) cyl(rr(-.45, .45), P, rr(-.45, .45), .045, .004, C.sakura);
+    person(-.28, .3, C.aqua, .8, P); person(-.18, .24, C.yellow, .8, P);
+  },
+  stage() {
+    pad('#e8dccb'); box(0, P, -.15, .8, .12, .46, C.wood); box(0, P + .12, -.36, .8, .4, .04, C.coral);
+    for (const sx of [-1, 1]) { cyl(sx * .38, P + .12, .06, .03, .42, C.ink); box(sx * .32, P + .12, -.25, .08, .16, .08, C.ink); }
+    box(0, P + .54, .06, .8, .03, .03, C.ink);
+    for (let i = 0; i < 4; i++) gsph(-.24 + i * .16, P + .47, .07, .05);
+    person(0, -.16, C.yellow, 1, P + .12);
+    for (let i = 0; i < 6; i++) person(-.35 + i * .14, .3 + (i % 2) * .08, pick([C.aqua, C.pink, C.blue, C.cream]), .8, P);
+    pool(0, .1, 1.1);
+  },
+  playground() {
+    box(0, 0, 0, .98, .03, .98, '#f2b5c6');
+    box(-.25, .03, -.2, .18, .28, .18, C.yellow); hip(-.25, .31, -.2, .22, .12, .22, C.coral);
+    part('box', .03, .17, -.2, .36, .025, .12, C.aqua, 0, 0, -.6);
+    for (const x of [.08, .42]) { cyl(x, .03, .16, .025, .34, C.ink); cyl(x, .03, .26, .025, .34, C.ink); }
+    box(.25, .37, .21, .4, .025, .13, C.ink);
+    for (const x of [.18, .32]) { cyl(x, .14, .21, .006, .23, C.ink); box(x, .12, .21, .07, .015, .05, C.coral); }
+    box(-.25, .03, .26, .3, .03, .24, '#ead8ad');
+    part('box', -.25, .07, .0, .36, .02, .05, C.blue, 0, 0, .12); box(-.25, .03, 0, .05, .05, .05, C.ink);
+    person(-.3, .26, C.yellow, .6, .06); person(.25, .4, C.coral, .6, .03);
+  },
+  taiji() {
+    box(0, 0, 0, .6, .1, .6, C.stone);
+    part('rbox', -.04, .1, 0, .38, .36, .28, C.dark, 0, .3, .22);
+    part('rbox', .08, .4, 0, .3, .22, .24, '#55555b', 0, -.2, -.4);
+    sph(-.12, .52, .02, .16, '#4f4f55');
+  },
+  elephant() {
+    pad('#e0dbd2');
+    const E = (x, z, s, ry) => sub(x, z, s, ry, () => {
+      for (const sx of [-1, 1]) for (const sz of [-1, 1]) cyl(sx * .16, P, sz * .09, .08, .14, '#85878c');
+      rbox(0, P + .1, 0, .5, .28, .3, '#8f9196'); rbox(.26, P + .22, 0, .18, .18, .2, '#8f9196');
+      part('cyl', .36, P + .06, 0, .06, .2, .06, '#85878c', 0, 0, .3);
+    });
+    E(-.2, -.18, .55, .2); E(.22, -.12, .45, -.4); E(0, .2, .5, .9); E(-.32, .26, .35, 1.6); E(.32, .3, .35, -1.2);
+  },
+
+  /* ---------- 中大地標主建物 ---------- */
+  gate() {
+    torus(0, 0, -.1, .98, .03, C.road);
+    cyl(0, 0, -.1, .6, .045, C.lawn); tree(0, -.1, 'palm', .5, .045);
+    for (let k = 0; k < 8; k++) { const a = k / 8 * Math.PI * 2; shrub(Math.cos(a) * .22, -.1 + Math.sin(a) * .22, .9, .045); }
+    const z = .4;
+    for (const x of [-.33, -.12, .12, .33]) box(x, 0, z, .07, .36, .07, C.white);
+    box(0, .36, z, .82, .06, .1, C.white); prism(0, .42, z, .9, .1, .16, C.teal);
+    box(0, .42, z, .3, .08, .08, C.white); prism(0, .5, z, .36, .08, .14, C.teal);
+    box(0, .27, z + .052, .2, .06, .012, C.ink);
+    box(.43, 0, .16, .12, .14, .12, C.white); gbox(.43, .06, .16, .13, .045, .13, C.win); box(.43, .14, .16, .15, .02, .15, C.teal);
+    box(-.42, 0, -.4, .14, .26, .02, C.teal); box(-.42, .26, -.36, .18, .02, .1, C.teal); cyl(-.48, 0, -.33, .02, .26, C.ink);
+    for (const x of [-.45, .45]) lamp(x, .42, .36);
+  },
+  auditorium() {
+    rbox(0, 0, 0, 1, .04, 1, '#e8dccb');
+    cyl(0, .04, -.08, .66, .26, C.white);
+    for (let k = 0; k < 10; k++) { const a = k / 10 * Math.PI * 2; gbox(Math.cos(a) * .325, .13, -.08 + Math.sin(a) * .325, .12, .07, .03, C.win, -(a + Math.PI / 2)); }
+    torus(0, .29, -.08, .72, .025, C.cream);
+    dome(0, .3, -.08, .7, .3, C.copper); cyl(0, .59, -.08, .08, .06, C.white); sph(0, .64, -.08, .07, C.copper);
+    box(0, .04, .3, .34, .18, .12, C.white); box(0, .22, .3, .38, .03, .15, C.cream); box(0, .04, .4, .36, .03, .08, C.stone);
+    nest(.33, .32, .42, .4, 'taiji'); tree(-.38, .3, 'camphor', .42, .04); pool(0, .42, .9);
+  },
+  library() {
+    rbox(0, 0, 0, 1, .04, 1, '#e8dccb');
+    box(0, .04, -.12, .48, 1.3, .48, C.white);
+    for (let f = 0; f < 7; f++) { const y = .14 + f * .165; gbox(0, y, -.12, .5, .11, .36, C.win); gbox(0, y, -.12, .36, .11, .5, C.win); }
+    box(0, 1.34, -.12, .52, .04, .52, C.roof); box(0, 1.38, -.12, .2, .1, .2, C.gray);
+    box(0, .04, .26, .92, .28, .26, '#dcdad4'); gbox(0, .12, .26, .93, .08, .2, C.win); gbox(0, .12, .26, .86, .08, .27, C.win);
+    box(0, .32, .26, .94, .025, .28, C.roof); box(0, .04, .43, .4, .03, .08, C.stone); pool(0, .45, 1);
+  },
+  eng5() {
+    rbox(0, 0, 0, 1, .04, 1, '#e0dbd2');
+    box(0, .04, -.05, 1, .86, .42, C.white);
+    for (let f = 0; f < 5; f++) { const y = .1 + f * .16; gbox(0, y, -.05, 1.012, .07, .34, C.win); gbox(0, y, -.05, .92, .07, .432, C.win); }
+    box(0, .9, -.05, 1.02, .025, .44, C.roof);
+    box(-.3, .925, -.08, .2, .1, .18, C.gray); cyl(.05, .925, -.05, .12, .12, C.gray); cyl(.22, .925, -.05, .12, .12, C.gray);
+    box(.4, .925, 0, .1, .06, .1, C.gray); cyl(-.42, .925, -.15, .015, .25, C.ink);
+    box(-.46, .04, -.05, .08, .92, .2, C.brick);
+    box(0, .2, .19, .3, .02, .1, C.teal); person(.2, .35, C.aqua, .9, .04); person(-.1, .4, C.yellow, .9, .04); pool(0, .32, .9);
+  },
+  radarCenter() {
+    rbox(0, 0, 0, 1, .04, 1, '#e0dbd2');
+    building(-.24, .18, .44, .3, 2, C.white);
+    cyl(.2, .04, -.16, .34, .36, '#d8dade'); box(.2, .4, -.16, .4, .02, .4, C.white);
+    sph(.2, .42, -.16, .58, '#fbfbf8'); torus(.2, .42, -.16, .5, .02, C.gray);
+    nest(-.3, -.26, .55, 0, 'antenna');
+  },
+  track() {
+    rbox(0, 0, 0, 1, .025, 1, '#8fbf5a');
+    const y = .025;
+    box(0, y, 0, .42, .012, .6, C.track); cyl(-.21, y, 0, .6, .012, C.track); cyl(.21, y, 0, .6, .012, C.track);
+    box(0, y + .012, 0, .42, .004, .4, C.lawn); cyl(-.21, y + .012, 0, .4, .004, C.lawn); cyl(.21, y + .012, 0, .4, .004, C.lawn);
+    for (let k = 1; k <= 3; k++) for (const s of [-1, 1]) box(0, y + .013, s * (.2 + k * .025), .42, .002, .006, '#ffffff');
+    box(0, y + .017, 0, .006, .002, .38, '#ffffff'); torus(0, y + .016, 0, .12, .002, '#ffffff');
+    for (const s of [-1, 1]) box(s * .36, y + .016, 0, .02, .04, .1, '#ffffff');
+    for (let s = 0; s < 3; s++) { box(0, 0, -.35 - s * .045, .6, .04 * (s + 1) + .02, .045, C.gray); box(0, .04 * (s + 1) + .02, -.35 - s * .045, .6, .012, .035, s % 2 ? C.coral : C.yellow); }
+    for (const sx of [-1, 1]) { cyl(sx * .46, 0, .42, .022, .5, C.ink); gbox(sx * .46, .5, .42, .1, .04, .06, '#fff3d6'); }
+    for (let i = 0; i < 4; i++) person(-.3 + i * .2, .27 + (i % 2) * .01, pick([C.coral, C.yellow, C.aqua]), .7, y + .012);
+    pool(0, 0, 1.2);
+  },
+  lawn() {
+    rbox(0, 0, 0, 1, .02, 1, '#86bd52');
+    for (let i = 0; i < 5; i++) box(-.4 + i * .2, .02, 0, .1, .003, .96, '#93c75e');
+    part('box', -.1, .02, .12, .34, .006, .34, '#d9b98a', 0, Math.PI / 4, 0);
+    const d = .24; [[-.1, .12 + d], [.14, .12], [-.1, .12 - d], [-.34, .12]].forEach(([x, z]) => box(x, .026, z, .03, .008, .03, '#ffffff'));
+    cyl(-.1, .02, .12, .06, .014, '#c9a679'); box(-.1, .02, .44, .3, .16, .012, '#9aa0a8');
+    tree(.36, -.34, 'camphor', .6, .02); tree(-.38, -.36, 'banyan', .55, .02);
+    person(.3, .2, C.pink, .8, .02); person(.36, .26, C.cream, .8, .02); person(-.1, .0, C.blue, .8, .02);
+  },
+  lake() {
+    rbox(0, 0, 0, 1, .025, 1, '#86bd52');
+    cyl(0, 0, -.02, .86, .042, '#d8cbb6', .72); cyl(0, 0, -.02, .8, .05, '#79c0cc', .66);
+    cyl(.14, 0, -.08, .2, .062, '#86bd52', .16);
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) cyl(.14 + sx * .04, .062, -.08 + sz * .04, .012, .08, C.wood);
+    hip(.14, .14, -.08, .13, .07, .13, C.teal);
+    for (let i = 0; i < 7; i++) { const t = (i + .5) / 7, x = -.3 + t * .36; part('box', x, .05 + Math.sin(t * Math.PI) * .06, -.08, .055, .016, .08, C.wood, 0, 0, Math.atan(Math.cos(t * Math.PI) * Math.PI * .06 / .36)); }
+    for (let i = 0; i < 6; i++) cyl(rr(-.25, .3), .05, rr(.0, .2), .05, .004, '#6f9a52');
+    for (let k = 0; k < 9; k++) { const a = k / 9 * Math.PI * 2 + .2; tree(Math.cos(a) * .45, -.02 + Math.sin(a) * .4, 'sakura', .4, .025); }
+    pool(-.1, -.08, .8);
+  },
+  dorms() {
+    rbox(0, 0, 0, 1, .03, 1, '#e0dbd2');
+    building(-.3, -.12, .3, .66, 5, C.white, { fh: .15 });
+    building(.1, -.3, .46, .28, 4, C.white, { fh: .15 });
+    building(.31, .13, .3, .3, 3, C.white, { fh: .15 });
+    box(-.04, .03, .3, .3, .006, .26, C.track); cyl(-.04, .03, .42, .025, .3, C.ink); box(-.04, .27, .405, .14, .09, .012, '#ffffff'); torus(-.04, .25, .37, .07, .01, C.coral);
+    for (let i = 0; i < 4; i++) box(.18 + i * .07, .03, .42, .02, .08, .12, C.yellow);
+    person(-.1, .25, C.coral, .8, .03); person(.02, .2, C.aqua, .8, .03);
+  },
+  village() {
+    rbox(0, 0, 0, 1, .03, 1, '#cfe0b0');
+    const H = (x, z, c, rc) => { box(x, .03, z, .26, .18, .22, c); gbox(x, .1, z, .27, .05, .14, C.win); prism(x, .21, z, .3, .1, .26, rc); pool(x, z + .2, .4); };
+    H(-.3, -.3, C.white, C.coral); H(0, -.32, '#f2e6d8', C.stone); H(.3, -.3, C.white, C.teal); H(-.32, .04, '#f2e6d8', C.coral);
+    nest(.18, .2, .5, 0, 'playground'); tree(-.38, .38, 'round', .4, .03);
+  },
+  clubhouse() {
+    rbox(0, 0, 0, 1, .03, 1, '#e8dccb');
+    for (let i = -3; i <= 3; i++) {
+      const a = i * .2, x = Math.sin(a) * .7, z = .45 - Math.cos(a) * .7;
+      sub(x, z, 1, -a, () => {
+        box(0, .03, 0, .2, .42, .2, C.white);
+        for (let f = 0; f < 4; f++) { gbox(0, .08 + f * .09, 0, .205, .04, .15, C.win); gbox(0, .08 + f * .09, 0, .15, .04, .205, C.win); }
+        box(0, .45, 0, .21, .02, .21, C.roof);
+      });
+    }
+    box(0, .03, .3, .58, .012, .3, '#e8dcc8'); box(0, .03, .3, .48, .02, .2, '#74c7d6');
+    for (const x of [-.18, 0, .18]) box(x, .042, .45, .1, .02, .04, C.cream);
+    pool(0, .1, 1);
+  },
+  humanities() {
+    rbox(0, 0, 0, 1, .03, 1, '#e8dccb');
+    box(-.08, .03, -.18, .76, .12, .5, C.brick); box(-.08, .15, -.18, .76, .55, .5, '#ecebe6');
+    for (let f = 0; f < 3; f++) { const y = .2 + f * .17; gbox(-.08, y, -.18, .772, .07, .42, C.win); gbox(-.08, y, -.18, .68, .07, .512, C.win); }
+    box(-.08, .7, -.18, .78, .025, .52, C.roof); box(-.25, .725, -.2, .14, .06, .12, C.gray);
+    box(-.08, .03, .08, .2, .1, .04, C.glass);
+    nest(.24, .28, .48, 0, 'elephant'); pool(-.08, .2, .9);
+  }
+};
+
+/* =====================================================================
+   每島：主建物、細項（交錯格子）、外圈路燈／大樹／盆栽／串燈、街道家具
+   ===================================================================== */
+function islandLayout(isl) {
+  const mp = isl.mainPos || [0, -.58];
+  const front = mp[1] > 0;
+  const treeAngs = front ? [150, 30, -30, -150, -90] : [-150, -115, -65, -30, 30, 150];
+  const trees = treeAngs.map(d => { const a = d * Math.PI / 180; return [Math.cos(a) * 1.32, Math.sin(a) * 1.32]; });
+  const n = isl.items.length, cell = clamp(.62 - (n - 3) * .04, .46, .62);
+  const pts = [];
+  for (let j = -6; j <= 6; j++) for (let i = -6; i <= 6; i++) {
+    const z = j * cell * .88, x = i * cell + (Math.abs(j) % 2) * cell / 2;
+    if (Math.hypot(x, z) > 1.36 - cell * .32) continue;
+    if (Math.abs(x - mp[0]) < .58 + cell * .42 && Math.abs(z - mp[1]) < .58 + cell * .42) continue;
+    if (trees.some(([tx, tz]) => Math.hypot(tx - x, tz - z) < .42)) continue;
+    pts.push([x, z]);
+  }
+  const tz = front ? -.6 : .55;
+  pts.sort((a, b) => Math.hypot(a[0] * .9, a[1] - tz) - Math.hypot(b[0] * .9, b[1] - tz));
+  return { mp, trees, cell, cells: pts.slice(0, n), spare: pts.slice(n, n + 3) };
+}
+function furniture(x, z, type) {
+  kit.small = true;
+  if (type === 0) { box(x, 0, z, .26, .04, .09, C.wood); box(x, .04, z - .035, .26, .07, .015, C.wood); for (const s of [-1, 1]) box(x + s * .1, 0, z, .02, .04, .08, C.ink); }
+  else if (type === 1) { for (let i = 0; i < 3; i++) { cyl(x - .1 + i * .1, 0, z, .035, .13, C.yellow); part('torus', x - .1 + i * .1 + .007, .06, z + .07, .1, .014, .1, C.ink, 0, 0, Math.PI / 2); } box(x, 0, z, .3, .012, .05, C.ink); }
+  else { box(x, 0, z, .26, .015, .12, C.gray); for (let i = 0; i < 3; i++) { box(x - .08 + i * .08, .015, z, .03, .01, .1, C.teal); cyl(x - .08 + i * .08, .015, z + .045, .012, .13, C.ink); } }
+  kit.small = false;
+}
+function buildIslandContents() {
+  DATA.islands.forEach(isl => {
+    const L = islandLayout(isl);
+    sub(isl.pos.x, isl.pos.z, 1, 0, () => {
+      // 主建物
+      kit.owner = 'island:' + isl.id; kit.topY = -Infinity;
+      sub(L.mp[0], L.mp[1], 1.15, 0, () => MODELS[isl.main]());
+      isl.top = kit.topY;
+      // 細項
+      isl.items.forEach((it, k) => {
+        const [x, z] = L.cells[k] || [0, 0];
+        kit.owner = 'item:' + it.id; kit.topY = -Infinity;
+        const s = L.cell * .92, ry = rr(-.12, .12);
+        sub(x, z, s, ry, () => (MODELS[it.model] || MODELS.school)());
+        it.top = kit.topY; it.scale = s;
+        it.world = new THREE.Vector3(isl.pos.x + x, TOP, isl.pos.z + z);
+      });
+      // 外圈裝飾
+      kit.owner = 'deco:' + isl.id;
+      for (let k = 0; k < 6; k++) { const a = Math.PI / 6 + k * Math.PI / 3; lamp(Math.cos(a) * 1.56, Math.sin(a) * 1.56, .5); }
+      L.trees.forEach(([x, z]) => tree(x, z, isl.tree, rr(.85, 1.05)));
+      for (let k = 0; k < 6; k++) {
+        const a0 = Math.PI / 6 + k * Math.PI / 3, a1 = a0 + Math.PI / 3;
+        for (let t = 1; t < 7; t++) {
+          const f = t / 7, x = lerp(Math.cos(a0), Math.cos(a1), f) * 1.985, z = lerp(Math.sin(a0), Math.sin(a1), f) * 1.985;
+          gsph(x, .045, z, .034, '#fff3d6');
+        }
+      }
+      kit.small = true;
+      for (let k = 0; k < 6; k++) {
+        const a = k * Math.PI / 3, x = Math.cos(a) * 1.4, z = Math.sin(a) * 1.4;
+        rbox(x, 0, z, .14, .06, .14, C.stone); shrub(x, z, 1.1, .06);
+        for (let f = 0; f < 3; f++) sph(x + Math.cos(a + 1.6) * (f - 1) * .14, 0, z + Math.sin(a + 1.6) * (f - 1) * .14, .05, pick(FLOWERS));
+      }
+      kit.small = false;
+      L.spare.forEach(([x, z], i) => furniture(x, z, i % 3));
+    }, TOP);
+  });
+  // 百花川：兩岸紅色花帶（放在路緣上）
+  kit.owner = null;
+  for (const [a, b] of DATA.brook.pairs) {
+    const A = ISL.get(a), B = ISL.get(b);
+    for (const [I, J] of [[A, B], [B, A]]) {
+      const ang = Math.atan2(J.pos.z - I.pos.z, J.pos.x - I.pos.x), nx = Math.cos(ang), nz = Math.sin(ang);
+      for (let t = -4; t <= 4; t++) {
+        const off = t * .2, x = I.pos.x + nx * 1.715 - nz * off, z = I.pos.z + nz * 1.715 + nx * off;
+        sph(x, TOP + .04, z, .085, t % 2 ? '#d9483b' : '#e8604f'); ico(x + nx * .02, TOP + .035, z + nz * .02, .07, .05, '#5f8c45');
+      }
+    }
+  }
+  // 正門大道：島內步道＋伸出去的長堤
+  const g = ISL.get('traffic').pos;
+  kit.owner = 'deco:traffic';
+  box(g.x, TOP, g.z + 1.3, .5, .016, .8, C.path);
+  box(g.x, WATER_Y - .4, g.z + 4.4, .92, TOP - (WATER_Y - .4), 5, C.curb);
+  box(g.x, TOP, g.z + 4.4, .62, .014, 5, C.path);
+  for (const s of [-1, 1]) box(g.x + s * .4, TOP, g.z + 4.4, .1, .04, 5, C.curb);
+  sub(g.x, g.z, 1, 0, () => {
+    for (let i = 0; i < 7; i++) {
+      const z = 2.3 + i * .68;
+      tree(.38 * (i % 2 ? 1 : -1), z, 'palm', .7); tree(.38 * (i % 2 ? -1 : 1), z + .34, 'palm', .62);
+      if (i % 2 === 0) lamp(-.36, z + .17, .45);
+    }
+  }, TOP);
+}
+
+/* =====================================================================
+   遠景：林帶、盆地地形、背景樹、遠山／天際線、雲、氣象塔、高鐵高架
+   ===================================================================== */
+function fbm(x, z) { let a = 0, f = 1, amp = 1, s = 0; for (let i = 0; i < 4; i++) { a += amp * noise.noise(x * f, z * f); s += amp; f *= 2; amp *= .5; } return a / s; }
+function dIsl(x, z) { let d = Infinity; for (const isl of DATA.islands) d = Math.min(d, Math.hypot(x - isl.pos.x, z - isl.pos.z)); return d; }
+function camSide(x, z) { const dx = x - center.x, dz = z - center.z; return smooth(-.1, .9, dz / (Math.hypot(dx, dz) + 1e-3)); }
+function terrainH(x, z) {
+  const di = dIsl(x, z), dx = x - center.x, dz = z - center.z, dc = Math.hypot(dx, dz), cs = camSide(x, z);
+  if (di < 3.0) return -1.2;
+  const land = smooth(3.0, 3.7, di);
+  const belt = 1 - smooth(6.8, 8.8, di);
+  let h = .28 + fbm(x * .06 + 3, z * .06 - 7) * .9 * smooth(10, 22, dc) * (1 - .5 * cs)
+        + smooth(25, 50, dc) * (4.0 + fbm(x * .03, z * .03) * 2.2) * (1 - .72 * cs);
+  if (dc > 12 && dc < 44) { const st = .32; h = lerp(h, Math.floor(h / st) * st + .04, .75); }
+  const pn = noise.noise(x * .09 + 11, z * .09 - 5);
+  if (pn > .62 && dc > 15 && dc < 40 && belt < .05) h = Math.min(h, WATER_Y - .06);
+  h = lerp(h, .28 + fbm(x * .25, z * .25) * .04, belt);
+  h = lerp(-1.2, h, land);
+  h = lerp(h, -.6, smooth(72, 84, dc));
+  return h;
+}
+function buildTerrain() {
+  const seg = S.mobile ? 110 : 160;
+  const g = new THREE.PlaneGeometry(170, 170, seg, seg).rotateX(-Math.PI / 2).translate(center.x, 0, center.z);
+  const pos = g.attributes.position, cols = new Float32Array(pos.count * 3), c = new THREE.Color();
+  const pal = { pond: new THREE.Color('#8fb3ad'), sand: new THREE.Color('#d9c9a3'), field: new THREE.Color('#aec493'), field2: new THREE.Color('#bccd98'), grass: new THREE.Color('#a3b986'), forest: new THREE.Color('#6f8a62'), soil: new THREE.Color('#b2a38d') };
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i), z = pos.getZ(i), h = terrainH(x, z);
+    pos.setY(i, h);
+    if (h < WATER_Y + .02) c.copy(pal.pond);
+    else if (h < .2) c.copy(pal.sand);
+    else if (h < .9) c.copy((Math.floor(x * .35) + Math.floor(z * .35)) % 2 ? pal.field : pal.field2);
+    else if (h < 2.2) c.copy(pal.grass);
+    else if (h < 3.8) c.copy(pal.forest);
+    else c.copy(pal.soil);
+    cols[i * 3] = c.r; cols[i * 3 + 1] = c.g; cols[i * 3 + 2] = c.b;
+  }
+  g.setAttribute('color', new THREE.BufferAttribute(cols, 3));
+  g.computeVertexNormals();
+  const m = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: .96 }));
+  m.receiveShadow = true; scene.add(m);
+}
+function colorize(g, hex) { const c = new THREE.Color(hex), n = g.attributes.position.count, a = new Float32Array(n * 3); for (let i = 0; i < n; i++) { a[i * 3] = c.r; a[i * 3 + 1] = c.g; a[i * 3 + 2] = c.b; } g.setAttribute('color', new THREE.BufferAttribute(a, 3)); return g; }
+function jitter(g, amt) {
+  const p = g.attributes.position;
+  for (let i = 0; i < p.count; i++) {
+    const x = p.getX(i), y = p.getY(i), z = p.getZ(i), h = Math.sin(x * 12.9898 + y * 78.233 + z * 37.719) * 43758.5453;
+    const f = (h - Math.floor(h)) - .5; p.setXYZ(i, x * (1 + f * amt), y * (1 + f * amt * .6), z * (1 + f * amt));
+  }
+  return g;
+}
+function treeGeos() {
+  const trunk = () => colorize(new THREE.CylinderGeometry(.05, .07, .36, 5).translate(0, .18, 0).toNonIndexed(), '#8a6a50');
+  const leaf = [trunk()];
+  [[0, .6, 0, .42], [.2, .5, .08, .3], [-.18, .54, -.06, .32], [.02, .82, -.04, .28]].forEach(o => leaf.push(colorize(jitter(new THREE.IcosahedronGeometry(o[3], 0), .25).translate(o[0], o[1], o[2]), '#ffffff')));
+  const con = [trunk()];
+  [[.62, .5, .3], [.48, .45, .58], [.32, .4, .85]].forEach(o => con.push(colorize(new THREE.ConeGeometry(o[0] / 2, o[1], 7).translate(0, o[2], 0).toNonIndexed(), '#ffffff')));
+  const strip = g => { g.deleteAttribute('uv'); return g; };
+  const L = mergeGeometries(leaf.map(strip)), Cn = mergeGeometries(con.map(strip));
+  L.computeVertexNormals(); Cn.computeVertexNormals();
+  return { leaf: L, con: Cn };
+}
+function buildTrees() {
+  const geos = treeGeos();
+  const mat = new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: .9 });
+  const leafCols = ['#4f7a3a', '#5f8c45', '#6f9a52'].map(h => new THREE.Color(h));
+  const conCols = ['#4a7040', '#557b47', '#3f6638'].map(h => new THREE.Color(h));
+  const leafs = [], cons = [];
+  const g = ISL.get('traffic').pos;
+  // 校園外圍密林帶
+  const beltN = S.mobile ? 420 : 1100;
+  let tries = 0;
+  while (leafs.length < beltN && tries++ < beltN * 30) {
+    const x = center.x + rr(-24, 24), z = center.z + rr(-22, 22), di = dIsl(x, z);
+    if (di < 3.9 || di > 7.8) continue;
+    if (Math.abs(x - g.x) < 1.1 && z > g.z + 1.5) continue;
+    const cs = camSide(x, z);
+    if (rng() < cs * .9) continue;
+    const h = terrainH(x, z); if (h < .1) continue;
+    const s = rr(.5, .78) * (1 - cs * .45);
+    leafs.push({ x, y: h, z, s, c: pick(leafCols) });
+  }
+  // 丘陵上的背景樹
+  const bgN = S.mobile ? 1300 : 3200;
+  tries = 0; let placed = 0;
+  while (placed < bgN && tries++ < bgN * 8) {
+    const a = rng() * Math.PI * 2, r = Math.sqrt(lerp(16 * 16, 52 * 52, rng()));
+    const x = center.x + Math.cos(a) * r, z = center.z + Math.sin(a) * r;
+    const cs = camSide(x, z); if (cs > .35 && r < 34) continue; if (rng() < cs * .6) continue;
+    const h = terrainH(x, z); if (h < .15 || dIsl(x, z) < 8) continue;
+    const s = rr(.5, .95) * (1 + Math.min(h, 4) * .08);
+    const conifer = rng() < (h > 2 ? .55 : .22);
+    (conifer ? cons : leafs).push({ x, y: h, z, s, c: pick(conifer ? conCols : leafCols) });
+    placed++;
+  }
+  const make = (geo, arr) => {
+    const m = new THREE.InstancedMesh(geo, mat, arr.length), M = new THREE.Matrix4(), q = new THREE.Quaternion();
+    arr.forEach((t, i) => { q.setFromAxisAngle(UP, rng() * 6.28); M.compose(new THREE.Vector3(t.x, t.y - .02, t.z), q, new THREE.Vector3(t.s, t.s * rr(.9, 1.15), t.s)); m.setMatrixAt(i, M); m.setColorAt(i, t.c); });
+    m.instanceMatrix.needsUpdate = true; m.instanceColor.needsUpdate = true; m.receiveShadow = false; m.castShadow = false;
+    m.computeBoundingSphere(); scene.add(m);
+  };
+  make(geos.leaf, leafs); make(geos.con, cons);
+}
+function buildMountains() {
+  const ring = (radius, baseH, varH, color, k, skyline) => {
+    const pts = [];
+    if (skyline) {
+      let a = 0;
+      while (a < Math.PI * 2) { const w = rr(.012, .035), hb = rng() < .08 ? rr(5, 7.5) : rr(1.4, 4.2); pts.push([a, hb], [a + w, hb]); a += w; }
+    } else {
+      for (let i = 0; i <= 220; i++) { const a = i / 220 * Math.PI * 2; pts.push([a, baseH + (fbm(Math.cos(a) * 2.2 + radius, Math.sin(a) * 2.2) * .5 + .5) * varH]); }
+    }
+    const pos = [], idx = [];
+    pts.forEach(([a, h], i) => { pos.push(Math.cos(a) * radius, h, Math.sin(a) * radius, Math.cos(a) * radius, -4, Math.sin(a) * radius); if (i) { const b = i * 2; idx.push(b - 2, b - 1, b, b - 1, b + 1, b); } });
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setIndex(idx);
+    const mat = new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide, fog: false, toneMapped: false });
+    const m = new THREE.Mesh(g, mat); m.position.set(center.x, 0, center.z); m.frustumCulled = false; scene.add(m);
+    mountains.push({ mat, base: new THREE.Color(color), k });
+  };
+  ring(140, 9, 16, '#8fa39e', .62, false);
+  ring(118, 5, 11, '#9fb2a4', .48, false);
+  ring(96, 0, 0, '#a7aab0', .38, true);
+}
+function buildClouds() {
+  const puffs = [], groups = [];
+  for (let c = 0; c < 12; c++) {
+    const g = { cx: rr(-95, 95), cy: rr(17, 27), cz: rr(-85, 25) }, n = 5 + Math.floor(rng() * 3), sc = rr(2.2, 3.8);
+    groups.push(g);
+    for (let i = 0; i < n; i++) puffs.push({ g, ox: (i - n / 2) * sc * .55 + rr(-.4, .4), oy: rr(-.2, .6) * sc * (i % 2 ? .5 : 1), oz: rr(-.8, .8), s: sc * rr(.55, 1) });
+  }
+  const m = new THREE.InstancedMesh(new THREE.SphereGeometry(1, 12, 8), new THREE.MeshLambertMaterial({ color: '#ffffff' }), puffs.length);
+  m.frustumCulled = false; scene.add(m);
+  clouds = { mesh: m, puffs, groups, M: new THREE.Matrix4(), q: new THREE.Quaternion(), v: new THREE.Vector3(), sv: new THREE.Vector3() };
+  updateClouds(0);
+}
+function updateClouds(dt) {
+  const { mesh, puffs, groups, M, q, v, sv } = clouds;
+  for (const g of groups) { g.cx += dt * .6; if (g.cx > 110) g.cx = -110; }
+  puffs.forEach((p, i) => {
+    v.set(center.x + p.g.cx + p.ox, p.g.cy + p.oy, center.z + p.g.cz + p.oz); sv.set(p.s, p.s * .62, p.s * .8);
+    M.compose(v, q, sv); mesh.setMatrixAt(i, M);
+  });
+  mesh.instanceMatrix.needsUpdate = true;
+}
+function buildDistant() {
+  kit.owner = null;
+  // 丘陵上的小型氣象觀測塔
+  [[.95, 36], [1.9, 40], [2.6, 33], [3.6, 42]].forEach(([a0, r]) => {
+    const a = -Math.PI / 2 + (a0 - 2.2) * .55, x = center.x + Math.cos(a) * r, z = center.z + Math.sin(a) * r, h = terrainH(x, z);
+    cyl(x, h, z, .22, 3.2, C.white); box(x, h + 3.2, z, .45, .32, .5, C.white);
+    for (let k = 0; k < 3; k++) part('box', x, h + 3.36, z + .27, .12, 1.4, .04, C.white, 0, 0, k * 2.094);
+  });
+  // 遠方高鐵高架橋一小段
+  const p1 = new THREE.Vector3(center.x + Math.cos(3.55) * 47, 0, center.z + Math.sin(3.55) * 47);
+  const p2 = new THREE.Vector3(center.x + Math.cos(4.2) * 49, 0, center.z + Math.sin(4.2) * 49);
+  let maxH = 0; for (let t = 0; t <= 1; t += .05) { const p = p1.clone().lerp(p2, t); maxH = Math.max(maxH, terrainH(p.x, p.z)); }
+  const deckY = maxH + 2.2, dx = p2.x - p1.x, dz = p2.z - p1.z, len = Math.hypot(dx, dz), yaw = -Math.atan2(dz, dx);
+  for (let t = 0; t <= 1.001; t += 2.6 / len) { const p = p1.clone().lerp(p2, t), h = terrainH(p.x, p.z); cyl(p.x, h - .2, p.z, .45, deckY - h + .2, '#cfccc4'); }
+  const mid = p1.clone().lerp(p2, .5);
+  box(mid.x, deckY, mid.z, len, .4, .9, '#dedbd3', yaw); box(mid.x, deckY + .4, mid.z, len, .25, .06, '#cfccc4', yaw);
+  const tp = p1.clone().lerp(p2, .35);
+  rbox(tp.x, deckY + .4, tp.z, 7, .55, .55, '#f7f7f2', yaw); box(tp.x, deckY + .55, tp.z, 7.02, .1, .56, C.coral, yaw);
+}
+function buildPools() {
+  const tex = canvasTex(128, 128, (g) => {
+    const gr = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+    gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(.45, 'rgba(255,255,255,.45)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = gr; g.fillRect(0, 0, 128, 128);
+  }, false);
+  const geos = kit.pools.map(p => new THREE.PlaneGeometry(p.s, p.s).rotateX(-Math.PI / 2).translate(p.x, p.y + .02, p.z));
+  poolMat = new THREE.MeshBasicMaterial({ map: tex, color: '#ffc777', transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false });
+  const m = mergedMesh(geos, poolMat); m.renderOrder = 3; scene.add(m);
+}
+
+/* =====================================================================
+   搬運物圖示（canvas 線條圖）→ badge Sprite 與卡片圖
+   ===================================================================== */
+function rrect(g, x, y, w, h, r) { g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); }
+function drawIcon(g, type) {
+  g.save(); g.translate(64, 66); g.strokeStyle = C.ink; g.fillStyle = C.ink; g.lineWidth = 6; g.lineCap = 'round'; g.lineJoin = 'round';
+  const line = (pts) => { g.beginPath(); pts.forEach(([x, y], i) => i ? g.lineTo(x, y) : g.moveTo(x, y)); g.stroke(); };
+  const circ = (x, y, r, fill) => { g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); fill ? g.fill() : g.stroke(); };
+  switch (type) {
+    case 'book':
+      g.beginPath(); g.moveTo(0, -14); g.quadraticCurveTo(-14, -22, -30, -18); g.lineTo(-30, 18); g.quadraticCurveTo(-14, 14, 0, 22);
+      g.quadraticCurveTo(14, 14, 30, 18); g.lineTo(30, -18); g.quadraticCurveTo(14, -22, 0, -14); g.lineTo(0, 22); g.stroke(); break;
+    case 'sapling':
+      line([[0, 16], [0, -6]]);
+      g.beginPath(); g.moveTo(0, -2); g.quadraticCurveTo(-24, -6, -22, -26); g.quadraticCurveTo(-4, -22, 0, -2); g.stroke();
+      g.beginPath(); g.moveTo(0, -8); g.quadraticCurveTo(18, -10, 18, -26); g.quadraticCurveTo(3, -24, 0, -8); g.stroke();
+      line([[-16, 16], [16, 16], [11, 30], [-11, 30], [-16, 16]]); break;
+    case 'bento':
+      rrect(g, -28, -12, 56, 36, 7); g.stroke(); line([[-4, -12], [-4, 24]]); line([[-4, 6], [28, 6]]);
+      line([[-26, -24], [24, -20]]); line([[-24, -30], [26, -26]]); break;
+    case 'medkit':
+      rrect(g, -28, -14, 56, 40, 8); g.stroke(); rrect(g, -10, -24, 20, 10, 4); g.stroke();
+      line([[0, -2], [0, 16]]); line([[-9, 7], [9, 7]]); break;
+    case 'laptop':
+      rrect(g, -22, -22, 44, 30, 4); g.stroke(); line([[-32, 16], [32, 16], [26, 24], [-26, 24], [-32, 16]]); break;
+    case 'suitcase':
+      rrect(g, -18, -14, 36, 40, 6); g.stroke(); rrect(g, -8, -24, 16, 10, 4); g.stroke();
+      line([[-6, -6], [-6, 18]]); line([[6, -6], [6, 18]]); circ(-10, 31, 3, true); circ(10, 31, 3, true); break;
+    case 'ball':
+      circ(0, 0, 26); g.beginPath(); g.moveTo(-26, 0); g.quadraticCurveTo(0, -12, 26, 0); g.stroke();
+      g.beginPath(); g.moveTo(0, -26); g.quadraticCurveTo(-12, 0, 0, 26); g.stroke(); break;
+    case 'toy':
+      circ(-15, -18, 7); circ(15, -18, 7); circ(0, -2, 18); circ(-6, -6, 2.5, true); circ(6, -6, 2.5, true); circ(0, 4, 5);
+      g.beginPath(); g.arc(0, 30, 16, Math.PI * 1.15, Math.PI * 1.85); g.stroke(); break;
+    case 'toolbox':
+      rrect(g, -30, -8, 60, 32, 6); g.stroke(); line([[-12, -8], [-12, -20], [12, -20], [12, -8]]); line([[-30, 5], [30, 5]]); line([[-4, 1], [4, 1], [4, 9], [-4, 9], [-4, 1]]); break;
+  }
+  g.restore();
+}
+const CARGO_IMG = {}, CARGO_MAT = {};
+const CARGO_COL = { book: C.coral, sapling: '#5f8c45', bento: C.yellow, medkit: '#fbfbf8', laptop: '#9aa0a8', suitcase: C.aqua, ball: C.coral, toy: '#c9a27a', toolbox: C.teal };
+function buildCargoIcons() {
+  for (const type of Object.keys(CARGO_COL)) {
+    const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d');
+    g.beginPath(); g.arc(64, 64, 56, 0, Math.PI * 2); g.fillStyle = '#ffffff'; g.fill(); g.lineWidth = 9; g.strokeStyle = C.coral; g.stroke();
+    drawIcon(g, type);
+    CARGO_IMG[type] = c.toDataURL();
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+    CARGO_MAT[type] = new THREE.SpriteMaterial({ map: t, toneMapped: false, depthWrite: false });
+  }
+}
+
+/* =====================================================================
+   小人：大頭 chibi，每種零件一個 InstancedMesh
+   ===================================================================== */
+const WK = { list: [], meshes: {}, acc: {} };
+function buildRoutes() {
+  DATA.flows.forEach(f => {
+    const pts = routePoints(f.from, f.to), cum = [0];
+    for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + pts[i].distanceTo(pts[i - 1]));
+    f.route = { pts, cum, len: cum[cum.length - 1] };
+  });
+}
+function routeAt(rt, s, out, tan) {
+  s = clamp(s, 0, rt.len);
+  let lo = 0, hi = rt.cum.length - 1;
+  while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (rt.cum[mid] <= s) lo = mid; else hi = mid; }
+  const seg = rt.cum[hi] - rt.cum[lo] || 1, t = (s - rt.cum[lo]) / seg;
+  out.lerpVectors(rt.pts[lo], rt.pts[hi], t); tan.subVectors(rt.pts[hi], rt.pts[lo]).normalize();
+}
+function roleAcc(role) {
+  const A = [], a = (pool, x, y, z, sx, sy, sz, c, rx = 0, ry = 0, rz = 0, ground = false) => A.push({ pool, x, y, z, sx, sy, sz, c, rx, ry, rz, ground });
+  switch (role) {
+    case 'admin': a('box', 0, .1, 0, .112, .1, .094, C.teal); a('box', .026, .165, .05, .022, .028, .006, C.yellow); break;
+    case 'researcher': a('cyl', 0, .045, 0, .12, .14, .12, '#fbfbf8'); break;
+    case 'prof': a('box', 0, .115, .066, .075, .09, .026, C.coral, .2); break;
+    case 'student': a('rbox', 0, .1, -.064, .085, .1, .045, pick([C.coral, C.ink, C.blue])); break;
+    case 'biker':
+      a('torus', .008, .055, .1, .11, .015, .11, C.ink, 0, 0, Math.PI / 2, true); a('torus', .008, .055, -.1, .11, .015, .11, C.ink, 0, 0, Math.PI / 2, true);
+      a('box', 0, .07, 0, .016, .016, .21, C.yellow, 0, 0, 0, true); a('box', 0, .12, .09, .09, .012, .012, C.ink, 0, 0, 0, true);
+      a('box', 0, .06, -.04, .014, .06, .014, C.yellow, 0, 0, 0, true); a('rbox', 0, .1, .13, .07, .045, .05, C.yellow, 0, 0, 0, true); break;
+    case 'runner': a('torus', 0, .3, 0, .158, .018, .158, C.coral); break;
+    case 'elder': a('cyl', .078, -.0, .05, .012, .17, .012, C.wood); break;
+    case 'parent':
+      a('rbox', 0, .05, .17, .09, .075, .12, C.blue, 0, 0, 0, true); a('dome', 0, .12, .13, .09, .06, .07, C.blue, 0, 0, 0, true);
+      a('box', 0, .13, .085, .08, .012, .012, C.ink, 0, 0, 0, true);
+      for (const sx of [-1, 1]) for (const sz of [.13, .22]) a('sphere', sx * .045, 0, sz, .03, .03, .03, C.ink, 0, 0, 0, true); break;
+    case 'gardener': a('cone', 0, .33, 0, .23, .06, .23, '#e8d5a0'); break;
+    case 'worker': a('dome', 0, .3, 0, .168, .075, .168, C.yellow); a('box', 0, .1, 0, .11, .1, .092, '#f2c94c'); break;
+    case 'visitor': a('rbox', .09, .015, -.03, .045, .1, .075, C.aqua, 0, 0, 0, true); a('cyl', .09, .115, -.03, .008, .06, .008, C.ink, 0, 0, 0, true); break;
+  }
+  return A;
+}
+function buildWalkers() {
+  const shirts = [C.aqua, C.pink, C.yellow, '#9cc27a', C.blue, C.cream];
+  const hairs = ['#2b2422', '#4a3428', '#6b4a32', '#1e1e1e'];
+  DATA.flows.forEach(f => {
+    for (let k = 0; k < f.walkers; k++) {
+      const role = f.roles[k % f.roles.length];
+      const w = {
+        i: WK.list.length, flow: f, role, s: rr(0, f.route.len), dir: rng() < .5 ? 1 : -1,
+        speed: role === 'biker' ? rr(.62, .7) : rr(.32, .4) * (role === 'elder' ? .8 : 1),
+        wait: 0, atEnd: null, phase: rng(), lat: rr(-.075, .075), lead: k < 2,
+        skin: pick(C.skin), hair: role === 'elder' ? '#d8d4cf' : pick(hairs), shirt: ROLES[role].shirt || pick(shirts),
+        pants: pick(['#3b4a6b', '#2e2e2e', '#6b5d55', '#4a5a48']), lift: role === 'biker' ? .07 : 0,
+        acc: roleAcc(role), pos: new THREE.Vector3(), carrying: false
+      };
+      WK.list.push(w);
+    }
+  });
+  const N = WK.list.length;
+  const mat = new THREE.MeshStandardMaterial({ roughness: .7 });
+  const mk = (geo, count, name) => {
+    const m = new THREE.InstancedMesh(geo, mat, count);
+    m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); m.frustumCulled = false; scene.add(m); WK.meshes[name] = m; return m;
+  };
+  mk(KINDS.box, N * 2, 'leg'); mk(KINDS.box, N * 2, 'arm');
+  mk(new THREE.CapsuleGeometry(.052, .07, 4, 10).translate(0, .087, 0), N, 'body');
+  mk(KINDS.sphere, N, 'head'); mk(KINDS.dome, N, 'hair'); mk(KINDS.sphere, N * 2, 'eye');
+  const sh = new THREE.InstancedMesh(new THREE.CircleGeometry(.1, 16).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: '#000000', transparent: true, opacity: .22, depthWrite: false }), N);
+  sh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); sh.frustumCulled = false; sh.renderOrder = 2; scene.add(sh); WK.meshes.shadow = sh;
+  // 配件池
+  const counts = { rbox: N };
+  WK.list.forEach(w => w.acc.forEach(a => counts[a.pool] = (counts[a.pool] || 0) + 1));
+  for (const [pool, n] of Object.entries(counts)) WK.acc[pool] = { mesh: mk(KINDS[pool], n, 'acc_' + pool), next: 0 };
+  const tmp = new THREE.Matrix4(), e = new THREE.Euler(), q = new THREE.Quaternion();
+  WK.list.forEach(w => {
+    const i = w.i;
+    for (const s of [0, 1]) { WK.meshes.leg.setColorAt(i * 2 + s, col(w.pants)); WK.meshes.arm.setColorAt(i * 2 + s, col(w.shirt)); WK.meshes.eye.setColorAt(i * 2 + s, col(C.ink)); }
+    WK.meshes.body.setColorAt(i, col(w.shirt)); WK.meshes.head.setColorAt(i, col(w.skin)); WK.meshes.hair.setColorAt(i, col(w.hair));
+    w.acc.forEach(a => {
+      const P_ = WK.acc[a.pool]; a.index = P_.next++; P_.mesh.setColorAt(a.index, col(a.c));
+      e.set(a.rx, a.ry, a.rz); q.setFromEuler(e); a.m = new THREE.Matrix4().compose(new THREE.Vector3(a.x, a.y, a.z), q, new THREE.Vector3(a.sx, a.sy, a.sz));
+    });
+    w.cargoIndex = WK.acc.rbox.next++; WK.acc.rbox.mesh.setColorAt(w.cargoIndex, col(CARGO_COL[w.flow.cargo]));
+    // badge 與名牌
+    w.badge = new THREE.Sprite(CARGO_MAT[w.flow.cargo]); w.badge.scale.set(.17, .17, 1); w.badge.visible = false; w.badge.renderOrder = 8; scene.add(w.badge);
+    const el = document.createElement('div'); el.className = 'bubble';
+    el.textContent = tr('正在搬 ', 'Carrying ') + tr(w.flow.cargoName, w.flow.cargoEn);
+    w.tag = new CSS2DObject(el); w.tag.visible = false; scene.add(w.tag);
+  });
+  Object.values(WK.meshes).forEach(m => { if (m.instanceColor) m.instanceColor.needsUpdate = true; });
+  for (const name of ['body', 'head']) { WK.meshes[name].userData.walkerPart = true; pickables.push(WK.meshes[name]); }
+}
+const WT = {};
+function initWalkerTemps() {
+  Object.assign(WT, {
+    W: new THREE.Matrix4(), B: new THREE.Matrix4(), L: new THREE.Matrix4(), T: new THREE.Matrix4(), R: new THREE.Matrix4(), S: new THREE.Matrix4(), M: new THREE.Matrix4(),
+    q: new THREE.Quaternion(), v: new THREE.Vector3(), tan: new THREE.Vector3(), sc: new THREE.Vector3(), zero: new THREE.Matrix4().makeScale(0, 0, 0)
+  });
+}
+function logEvent(w, type) {
+  const f = w.flow, role = roleName(w.role), cargo = tr(f.cargoName, f.cargoEn);
+  const text = type === 'depart' ? tr(`${role}從${islName(f.from)}出發，搬運${cargo}`, `${role} leaves ${islName(f.from)} with ${cargo}`)
+    : type === 'arrive' ? tr(`${role}抵達${islName(f.to)}`, `${role} arrives at ${islName(f.to)}`)
+    : tr(`${role}在${islName(f.to)}交接${cargo}`, `${role} hands over ${cargo} at ${islName(f.to)}`);
+  S.logs.unshift({ t: S.minute, type, flow: f.id, text });
+  if (S.logs.length > 80) S.logs.pop();
+  S.logDirty = true;
+}
+function updateWalkers(dt, running) {
+  const vis = S.carry;
+  for (const m of Object.values(WK.meshes)) m.visible = vis;
+  for (const p of Object.values(WK.acc)) p.mesh.visible = vis;
+  if (!vis) { WK.list.forEach(w => { w.badge.visible = false; w.tag.visible = false; }); return; }
+  const { W, B, L, T, R, M, q, v, tan, sc, zero } = WT;
+  const camD = camera.position.distanceTo(controls.target), k = clamp(camD / 20, 1, 1.45);
+  const mesh = WK.meshes;
+  for (const w of WK.list) {
+    const rt = w.flow.route;
+    if (running) {
+      if (w.wait > 0) {
+        w.wait -= dt;
+        if (w.wait <= 0) {
+          if (w.atEnd === 'to') { w.dir = -1; if (w.lead) logEvent(w, 'handoff'); }
+          else { w.dir = 1; if (w.lead) logEvent(w, 'depart'); }
+        }
+      } else {
+        w.s += w.dir * w.speed * dt;
+        if (w.s >= rt.len) { w.s = rt.len; w.wait = 1.4; w.atEnd = 'to'; if (w.lead) logEvent(w, 'arrive'); }
+        else if (w.s <= 0) { w.s = 0; w.wait = 1.4; w.atEnd = 'from'; }
+      }
+    }
+    w.carrying = w.dir > 0;
+    routeAt(rt, w.s, w.pos, tan);
+    if (w.dir < 0) tan.negate();
+    w.pos.x += tan.z * w.lat; w.pos.z -= tan.x * w.lat;
+    const moving = w.wait <= 0;
+    const ph = S.simTime * 9 + w.phase * 20;
+    const swing = moving ? Math.sin(ph) * .55 : 0, armS = moving ? Math.sin(ph) * .45 : 0, bob = moving ? Math.abs(Math.sin(ph)) * .012 : 0;
+    q.setFromAxisAngle(UP, Math.atan2(tan.x, tan.z));
+    W.compose(v.set(w.pos.x, w.pos.y + bob, w.pos.z), q, sc.set(k, k, k));
+    B.copy(W).multiply(T.makeTranslation(0, w.lift, 0));
+    const holding = w.carrying || w.role === 'prof';
+    for (const s of [-1, 1]) {
+      const idx = w.i * 2 + (s > 0 ? 1 : 0);
+      M.copy(B).multiply(T.makeTranslation(s * .028, .095, 0)).multiply(R.makeRotationX(w.lift ? -.9 + s * swing * .6 : s * swing)).multiply(T.makeTranslation(0, -.095, 0)).multiply(L.makeScale(.036, .095, .04));
+      mesh.leg.setMatrixAt(idx, M);
+      M.copy(B).multiply(T.makeTranslation(s * .064, .215, 0)).multiply(R.makeRotationZ(s * .12)).multiply(L.makeRotationX(holding || w.lift ? -.95 : -s * armS)).multiply(T.makeTranslation(0, -.085, 0)).multiply(R.makeScale(.028, .085, .03));
+      mesh.arm.setMatrixAt(idx, M);
+      M.copy(B).multiply(T.makeTranslation(s * .027, .272, .066)).multiply(L.makeScale(.022, .022, .022));
+      mesh.eye.setMatrixAt(idx, M);
+    }
+    M.copy(B).multiply(T.makeTranslation(0, .075, 0)); mesh.body.setMatrixAt(w.i, M);
+    M.copy(B).multiply(T.makeTranslation(0, .21, 0)).multiply(L.makeScale(.15, .15, .15)); mesh.head.setMatrixAt(w.i, M);
+    M.copy(B).multiply(T.makeTranslation(0, .272, -.008)).multiply(R.makeRotationX(-.25)).multiply(L.makeScale(.165, .095, .165)); mesh.hair.setMatrixAt(w.i, M);
+    M.compose(v.set(w.pos.x, w.pos.y + .004, w.pos.z), q.identity(), sc.set(k, k, k)); mesh.shadow.setMatrixAt(w.i, M);
+    for (const a of w.acc) { M.copy(a.ground ? W : B).multiply(a.m); WK.acc[a.pool].mesh.setMatrixAt(a.index, M); }
+    if (w.carrying && w.role !== 'visitor') { M.copy(B).multiply(T.makeTranslation(0, .1, .075)).multiply(L.makeScale(.075, .065, .055)); WK.acc.rbox.mesh.setMatrixAt(w.cargoIndex, M); }
+    else WK.acc.rbox.mesh.setMatrixAt(w.cargoIndex, zero);
+    w.badge.visible = w.carrying && camD < 16;
+    if (w.badge.visible) { w.badge.position.set(w.pos.x, w.pos.y + (.47 + w.lift) * k, w.pos.z); w.badge.scale.set(.17 * k, .17 * k, 1); }
+    w.tag.visible = S.names && w.carrying && camera.position.distanceTo(w.pos) < 14;
+    if (w.tag.visible) w.tag.position.set(w.pos.x, w.pos.y + (.64 + w.lift) * k, w.pos.z);
+  }
+  for (const m of Object.values(WK.meshes)) m.instanceMatrix.needsUpdate = true;
+  for (const p of Object.values(WK.acc)) p.mesh.instanceMatrix.needsUpdate = true;
+}
+
+/* =====================================================================
+   協作線：沿路網的 TubeGeometry + 流動圖樣 shader
+   ===================================================================== */
+let flowShared = null;
+function buildFlows() {
+  flowShared = { uTime: { value: 0 }, uStatic: { value: S.reduced ? 1 : 0 }, uThick: { value: 0 } };
+  DATA.flows.forEach((f, fi) => {
+    const pts = f.route.pts.map(p => p.clone().add(new THREE.Vector3(0, .05 + fi * .012, 0)));
+    const curve = new THREE.CatmullRomCurve3(pts, false, 'centripetal');
+    const geo = new THREE.TubeGeometry(curve, Math.max(24, Math.ceil(f.route.len * 14)), .035, 6, false);
+    const mat = new THREE.ShaderMaterial({
+      uniforms: { uTime: flowShared.uTime, uStatic: flowShared.uStatic, uThick: flowShared.uThick, uLen: { value: f.route.len }, uStyle: { value: { official: 0, thematic: 1, pending: 2 }[f.evidence] }, uOpacity: { value: .82 }, uColor: { value: new THREE.Color(C.coral) } },
+      vertexShader: FLOW_VS, fragmentShader: FLOW_FS, transparent: true, depthWrite: false, toneMapped: false
+    });
+    const m = new THREE.Mesh(geo, mat); m.visible = false; m.renderOrder = 6; m.userData.flow = f.id;
+    scene.add(m); flowTubes.push(m); pickables.push(m);
+  });
+}
+function updateFlowVis() {
+  let any = false;
+  flowTubes.forEach(m => { const v = S.flows || S.relFlows.has(m.userData.flow); m.visible = v; any = any || v; });
+  $('#legend').hidden = !any; S.panelsAt = 0; S.dirty = true;
+}
+
+/* =====================================================================
+   標籤：島 pill、細項 pin、百花川；每幀碰撞避讓（含 8px hysteresis）
+   ===================================================================== */
+function buildLabels() {
+  DATA.islands.forEach(isl => {
+    const el = document.createElement('div'); el.className = 'isl-label';
+    el.innerHTML = `<span class="no">${isl.no}</span><span class="t">${esc(tr(isl.name, isl.nameEn))}${SEP}${esc(tr(isl.area, isl.areaEn))}</span>`;
+    el.addEventListener('pointerdown', e => e.stopPropagation());
+    el.addEventListener('click', e => { e.stopPropagation(); selectIsland(isl.id); });
+    const o = new CSS2DObject(el); o.position.set(isl.pos.x, TOP - .02, isl.pos.z + 1.95); scene.add(o);
+    labelItems.push({ obj: o, el, kind: 'island', id: isl.id, state: 'full', wFull: 0, wCompact: 30, h: 30, compactable: true });
+  });
+  const [a, b] = DATA.brook.pairs[2], A = ISL.get(a).pos, B = ISL.get(b).pos;
+  const el = document.createElement('div'); el.className = 'water-label'; el.textContent = tr(DATA.brook.name, DATA.brook.nameEn);
+  const o = new CSS2DObject(el); o.position.set((A.x + B.x) / 2, WATER_Y + .1, (A.z + B.z) / 2 + .6); scene.add(o);
+  labelItems.push({ obj: o, el, kind: 'water', id: 'brook', state: 'full', wFull: 0, wCompact: 0, h: 18, compactable: false });
+}
+function buildPins() {
+  const lineMat = new THREE.LineBasicMaterial({ color: C.coral, depthTest: false, transparent: true, opacity: .9, toneMapped: false });
+  ITEM.forEach(it => {
+    const el = document.createElement('div'); el.className = 'pin'; el.textContent = CIRC[it.no]; el.title = tr(it.name, it.nameEn);
+    el.addEventListener('pointerdown', e => e.stopPropagation());
+    el.addEventListener('click', e => { e.stopPropagation(); selectItem(it.id); });
+    const top = Math.max(it.top, TOP + .1);
+    const o = new CSS2DObject(el); o.position.set(it.world.x, top + .42, it.world.z); o.visible = false; scene.add(o);
+    const g = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(it.world.x, top + .02, it.world.z), new THREE.Vector3(it.world.x, top + .3, it.world.z)]);
+    const line = new THREE.Line(g, lineMat); line.renderOrder = 999; line.visible = false; scene.add(line);
+    pins.push({ it, obj: o, el, line });
+    labelItems.push({ obj: o, el, kind: 'pin', id: it.id, state: 'full', wFull: 28, wCompact: 28, h: 28, compactable: false });
+  });
+}
+let panelCache = [];
+function getPanels(now) {
+  if (now - (S.panelsAt || 0) < 450) return panelCache;
+  S.panelsAt = now;
+  const ids = ['#brand', '#tools', '#hud', '#legend', '#timeBtn', '#compass'];
+  if (S.cardOpen) ids.push('#card'); if (S.sidebarOpen) ids.push('#sidebar'); if (S.log) ids.push('#log');
+  panelCache = ids.map(s => $(s)).filter(e => e && !e.hidden && getComputedStyle(e).display !== 'none')
+    .map(e => { const r = e.getBoundingClientRect(); return { l: r.left, r: r.right, t: r.top, b: r.bottom }; });
+  return panelCache;
+}
+const ov = (a, b) => a.l < b.r && a.r > b.l && a.t < b.b && a.b > b.t;
+const _pv = () => _lv || (_lv = new THREE.Vector3()); let _lv = null;
+function layoutLabels(now) {
+  const Wd = stage.clientWidth, Ht = stage.clientHeight, panels = getPanels(now), placed = [], sid = islandOfSel(), v = _pv();
+  const items = labelItems.filter(l => l.obj.visible);
+  for (const l of items) {
+    l.obj.getWorldPosition(v); l.dist = v.distanceTo(camera.position); v.project(camera);
+    l.sx = (v.x + 1) / 2 * Wd; l.sy = (1 - v.y) / 2 * Ht; l.behind = v.z > 1;
+    l.prio = l.kind === 'pin' ? (S.sel?.kind === 'item' && S.sel.id === l.id ? -3000 : -1000 + l.dist) : l.id === sid ? -2000 : l.kind === 'water' ? 1000 + l.dist : l.dist;
+    if (!l.wFull && l.state === 'full' && l.el.offsetWidth) { l.wFull = l.el.offsetWidth; l.h = l.el.offsetHeight; }
+  }
+  items.sort((a, b) => a.prio - b.prio);
+  for (const l of items) {
+    let ns = 'hide';
+    if (!l.wFull) ns = 'full';
+    else if (!l.behind) {
+      const rect = (w, inf) => ({ l: l.sx - w / 2 - inf, r: l.sx + w / 2 + inf, t: l.sy - l.h / 2 - inf, b: l.sy + l.h / 2 + inf });
+      const ok = r => r.l >= 0 && r.r <= Wd && r.t >= 0 && r.b <= Ht && !placed.some(p => ov(p, r)) && !panels.some(p => ov(p, r));
+      if (ok(rect(l.wFull, l.state === 'full' ? 0 : 8))) ns = 'full';
+      else if (l.compactable && ok(rect(l.wCompact, l.state === 'hide' ? 8 : 0))) ns = 'compact';
+      if (ns !== 'hide') placed.push(rect(ns === 'full' ? l.wFull : l.wCompact, 2));
+    }
+    if (ns !== l.state) { l.state = ns; l.el.classList.toggle('compact', ns === 'compact'); l.el.classList.toggle('lbl-hide', ns === 'hide'); }
+  }
+}
+
+/* =====================================================================
+   選取：高亮 → 顯示相關協作線 → 飛行 → 開卡片
+   ===================================================================== */
+const YEL = () => col(C.yellow), COR = () => col(C.coral);
+function islandOfSel() {
+  if (!S.sel) return null;
+  if (S.sel.kind === 'island') return S.sel.id;
+  if (S.sel.kind === 'item') return ITEM.get(S.sel.id).island;
+  return null;
+}
+function flowOfSel() {
+  if (!S.sel) return null;
+  if (S.sel.kind === 'flow') return FLOW.get(S.sel.id);
+  if (S.sel.kind === 'walker') return WK.list[S.sel.id].flow;
+  return null;
+}
+function recolor() {
+  if (!kitMeshes.length) return;
+  const lit = new Set(S.seg ? S.seg.items.map(i => 'item:' + i) : []);
+  const sel = new Set();
+  if (S.sel) {
+    if (S.sel.kind === 'item') sel.add('item:' + S.sel.id);
+    else if (S.sel.kind === 'island') sel.add('island:' + S.sel.id);
+    else { const f = flowOfSel(); sel.add('island:' + f.from); sel.add('island:' + f.to); }
+  }
+  const y = YEL(), c = COR();
+  for (const m of kitMeshes) {
+    const { owners, base } = m.userData, arr = m.instanceColor.array;
+    for (let i = 0; i < owners.length; i++) {
+      let r = base[i * 3], g = base[i * 3 + 1], b = base[i * 3 + 2];
+      const o = owners[i];
+      if (o) {
+        if (lit.has(o)) { r = lerp(r, y.r, .22); g = lerp(g, y.g, .22); b = lerp(b, y.b, .22); }
+        if (sel.has(o)) { r = lerp(r, c.r, .22); g = lerp(g, c.g, .22); b = lerp(b, c.b, .22); }
+      }
+      arr[i * 3] = r; arr[i * 3 + 1] = g; arr[i * 3 + 2] = b;
+    }
+    m.instanceColor.needsUpdate = true;
+  }
+  S.dirty = true;
+}
+const flowsOfIsland = id => DATA.flows.filter(f => f.from === id || f.to === id).map(f => f.id);
+function setSelection(sel, rel) {
+  S.sel = sel; S.relFlows = new Set(rel);
+  recolor(); updateFlowVis();
+  const sid = islandOfSel(), f = flowOfSel();
+  labelItems.forEach(l => {
+    if (l.kind !== 'island') return;
+    const on = l.id === sid || (f && (l.id === f.from || l.id === f.to));
+    l.el.classList.toggle('sel', !!on); l.el.classList.toggle('dim', !!S.sel && !on);
+  });
+  pins.forEach(p => {
+    const v = p.it.island === sid; p.obj.visible = v; p.line.visible = v;
+    p.el.classList.toggle('active', S.sel?.kind === 'item' && S.sel.id === p.it.id);
+  });
+  renderSidebar(); S.dirty = true;
+}
+let OFF_ISL, OFF_ITEM, AERIAL;
+function selectIsland(id) {
+  const isl = ISL.get(id);
+  openCard(islandCard(isl));
+  setSelection({ kind: 'island', id }, flowsOfIsland(id));
+  flyTo(isl.pos.clone(), OFF_ISL);
+}
+function selectItem(id) {
+  const it = ITEM.get(id);
+  openCard(itemCard(it));
+  renderThumb(it);
+  setSelection({ kind: 'item', id }, flowsOfIsland(it.island));
+  flyTo(it.world.clone(), OFF_ITEM);
+}
+function selectFlow(id) {
+  const f = FLOW.get(id);
+  openCard(flowCard(f));
+  setSelection({ kind: 'flow', id }, [id]);
+  const mid = new THREE.Vector3(), tan = new THREE.Vector3(); routeAt(f.route, f.route.len / 2, mid, tan);
+  flyTo(mid, OFF_ISL.clone().multiplyScalar(1.25));
+}
+function selectWalker(i) {
+  const w = WK.list[i]; if (!w) return;
+  openCard(flowCard(w.flow, w));
+  setSelection({ kind: 'walker', id: i }, [w.flow.id]);
+  flyTo(w.pos.clone(), OFF_ITEM);
+}
+function deselect() { if (S.sel) setSelection(null, []); closeCard(); }
+function flyTo(target, offset) {
+  const tgt = target.clone(); let pos = tgt.clone().add(offset);
+  if (S.aerial) pos = tgt.clone().add(AERIAL);
+  panelShift(tgt, pos);
+  startFlight(pos, tgt);
+}
+// 桌面版：左側卡片／右側清單打開時，把目標移到兩者之間空白區的中央（只有卡片時約等於往右偏 1.5）
+function panelShift(tgt, pos) {
+  if (S.mobile) return;
+  const W = stage.clientWidth, left = S.cardOpen ? 372 : 0, right = S.sidebarOpen ? W - 350 : W;
+  const px = (left + right) / 2 - W / 2; if (Math.abs(px) < 4) return;
+  const off = pos.clone().sub(tgt), dist = off.length();
+  const fwd = off.clone().negate().normalize(), rightV = new THREE.Vector3().crossVectors(fwd, UP);
+  if (rightV.lengthSq() < 1e-6) rightV.set(1, 0, 0); rightV.normalize();
+  const halfW = dist * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * camera.aspect;
+  const shift = -px / (W / 2) * halfW;
+  tgt.addScaledVector(rightV, shift); pos.addScaledVector(rightV, shift);
+}
+function startFlight(pos, tgt) {
+  if (S.reduced) { camera.position.copy(pos); controls.target.copy(tgt); controls.update(); S.flight = null; S.dirty = true; return; }
+  S.flight = { t0: performance.now(), from: camera.position.clone(), fromT: controls.target.clone(), to: pos, toT: tgt }; S.dirty = true;
+}
+function panorama(instant) {
+  const a = stage.clientWidth / stage.clientHeight, d = a >= 1.25 ? 28.5 : a >= .85 ? 38 : 56;
+  const tgt = center.clone(), pos = S.aerial ? tgt.clone().add(AERIAL) : tgt.clone().addScaledVector(new THREE.Vector3(.24, .33, .87).normalize(), d);
+  panelShift(tgt, pos);
+  if (instant) { camera.position.copy(pos); controls.target.copy(tgt); controls.update(); S.dirty = true; }
+  else startFlight(pos, tgt);
+}
+function renderThumb(it) {
+  const cv = $('#thumb'); if (!cv) return;
+  const sz = renderer.getSize(new THREE.Vector2()), pr = renderer.getPixelRatio(), T = 160;
+  if (sz.x < T || sz.y < T) return;
+  const cam = new THREE.PerspectiveCamera(30, 1, .05, 300), c = it.world.clone();
+  c.y = TOP + it.scale * .32;
+  cam.position.copy(c).add(new THREE.Vector3(.45, .55, .74).normalize().multiplyScalar(it.scale * 3.4)); cam.lookAt(c);
+  const tags = WK.list.map(w => w.tag.visible);
+  renderer.setScissorTest(true); renderer.setViewport(0, 0, T, T); renderer.setScissor(0, 0, T, T);
+  renderer.render(scene, cam);
+  const ctx = cv.getContext('2d'), src = renderer.domElement, px = Math.round(T * pr);
+  ctx.clearRect(0, 0, cv.width, cv.height); ctx.drawImage(src, 0, src.height - px, px, px, 0, 0, cv.width, cv.height);
+  renderer.setScissorTest(false); renderer.setViewport(0, 0, sz.x, sz.y);
+  renderer.render(scene, camera);
+  WK.list.forEach((w, i) => w.tag.visible = tags[i]);
+}
+function nearestIsland(p) {
+  let best = null, bd = Infinity;
+  for (const isl of DATA.islands) { const d = Math.hypot(p.x - isl.pos.x, p.z - isl.pos.z); if (d < bd) { bd = d; best = isl; } }
+  return bd < R + .2 ? best : null;
+}
+let ray, ndc;
+function pickAt(e) {
+  const r = renderer.domElement.getBoundingClientRect();
+  ndc.set((e.clientX - r.left) / r.width * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+  ray.setFromCamera(ndc, camera);
+  if (S.carry) { WK.meshes.body.computeBoundingSphere(); WK.meshes.head.computeBoundingSphere(); }
+  const hits = ray.intersectObjects(pickables.filter(o => o.visible), false);
+  for (const h of hits) {
+    const ud = h.object.userData;
+    if (ud.walkerPart) return selectWalker(h.instanceId);
+    if (ud.flow) return selectFlow(ud.flow);
+    if (ud.kit) {
+      const ow = ud.owners[h.instanceId];
+      if (ow) { const [k, id] = ow.split(':'); return k === 'item' ? selectItem(id) : selectIsland(id); }
+      continue;
+    }
+    if (ud.islandTop) { const isl = nearestIsland(h.point); if (isl) return selectIsland(isl.id); }
+  }
+  deselect();
+}
+
+/* =====================================================================
+   卡片與側欄
+   ===================================================================== */
+const phaseText = p => tr(...PHASES[p - 1]);
+const isLit = id => !!(S.seg && S.seg.items.includes(id));
+function lineSvg(ev, w = 30) {
+  const da = ev === 'thematic' ? ' stroke-dasharray="7 5"' : ev === 'pending' ? ' stroke-dasharray="2.5 5"' : '';
+  return `<svg width="${w}" height="6" aria-hidden="true"><line x1="2" y1="3" x2="${w - 2}" y2="3" stroke="#db6a41" stroke-width="3.5" stroke-linecap="round"${da}/></svg>`;
+}
+function flowChip(f, islId) {
+  const txt = f.from === islId ? `→ ${islName(f.to)}` : `← ${islName(f.from)}`;
+  return `<button class="chip" data-flow="${f.id}">${lineSvg(f.evidence, 24)}${esc(txt)}${SEP}${esc(tr(f.cargoName, f.cargoEn))}</button>`;
+}
+function islandCard(isl) {
+  const flows = DATA.flows.filter(f => f.from === isl.id || f.to === isl.id);
+  return `<div class="eyebrow">POLICY ISLAND ${isl.no}</div>
+  <h2><span class="ic">${isl.icon}</span>${esc(tr(isl.name, isl.nameEn))}</h2>
+  <div class="loc">${tr('中大分區', 'NCU area')}：<b>${esc(tr(isl.area, isl.areaEn))}</b>${SEP}${esc(tr(isl.landmark, isl.landmarkEn))}</div>
+  <p class="sum">${esc(tr(isl.summary, isl.summaryEn))}</p>
+  <h3 class="eyebrow">${tr('政策細項', 'Policy items')} · ${isl.items.length}</h3>
+  <ol class="ilist">${isl.items.map(it => `<li><button class="item-btn${isLit(it.id) ? ' lit' : ''}" data-item="${it.id}"><span class="cn">${CIRC[it.no]}</span><span class="nm">${esc(tr(it.name, it.nameEn))}</span><span class="ph">${phaseText(it.phase)}</span></button></li>`).join('')}</ol>
+  <h3 class="eyebrow">${tr('協作', 'Collaboration')}</h3>
+  <div class="chips">${flows.map(f => flowChip(f, isl.id)).join('') || `<span class="muted">—</span>`}</div>`;
+}
+const factsOf = it => tr(it.facts, it.factsEn);
+function bigNums(facts) {
+  return facts.slice(0, 3).map(f => {
+    let m = f.match(/(\d{1,2}:\d{2})/);
+    if (m) return { n: m[1], u: '', label: f };
+    m = LANG === 'en' ? f.match(/([+]?\d[\d,]*(?:\.\d+)?)\s*(%|°C|×|m²|km|MW|Mbps|NTD|min|m\b)?/) : f.match(/([+]?\d[\d,]*(?:\.\d+)?)\s*(%|°C|[A-Za-z]+|[^\d\s，。、,:：+]{1,2})?/);
+    return m ? { n: m[1], u: m[2] || '', label: f } : null;
+  }).filter(Boolean);
+}
+function itemCard(it) {
+  const isl = ISL.get(it.island), nums = bigNums(factsOf(it));
+  return `<div class="eyebrow">${isl.no} ${esc(tr(isl.name, isl.nameEn))}${SEP}${esc(tr(isl.area, isl.areaEn))}</div>
+  <h2><span style="color:var(--coral)">${CIRC[it.no]}</span>${esc(tr(it.name, it.nameEn))}</h2>
+  <div class="thumbwrap"><canvas id="thumb" width="320" height="320" aria-label="${esc(tr(it.name, it.nameEn))} 模型縮圖"></canvas>
+    <div class="side">${isLit(it.id) ? `<span class="chip cream" style="background:#fcea8b">● ${tr('此時段亮起', 'Active now')}</span><br><br>` : ''}${tr('時程', 'Timeline')}：<b style="color:var(--ink)">${phaseText(it.phase)}</b><br>${tr('模型', 'Model')}：<code>${esc(it.model)}</code></div></div>
+  <p class="sum">${esc(tr(it.desc, it.descEn))}</p>
+  <div class="tiles">${nums.map(t => `<div class="tile"><div class="bignum">${esc(t.n)}<small>${esc(t.u)}</small></div><div class="tl">${esc(t.label)}</div></div>`).join('')}</div>
+  <h3 class="eyebrow">${tr('重點事實', 'Key facts')}</h3>
+  <ul class="facts">${factsOf(it).map(f => `<li>${esc(f)}</li>`).join('')}</ul>
+  <h3 class="eyebrow">${tr('時程軸', 'Timeline')}</h3>
+  <div class="timeline">${PHASES.map((p, i) => `<div class="step${i + 1 === it.phase ? ' on' : ''}${i + 1 < it.phase ? ' past' : ''}"><i></i><span>${tr(...p)}</span></div>`).join('')}</div>
+  <div class="chips" style="margin-top:18px"><button class="chip cream" data-island="${isl.id}">← ${esc(tr(isl.name, isl.nameEn))}${SEP}${tr('全部細項', 'all items')}</button></div>`;
+}
+function flowCard(f, w) {
+  const A = ISL.get(f.from), B = ISL.get(f.to);
+  return `<div class="eyebrow">${tr('協作線', 'Collaboration flow')} · ${f.id.toUpperCase()}</div>
+  <h2>${esc(tr(f.title, f.titleEn))}</h2>
+  <div class="flowhead"><button class="isl chip" data-island="${A.id}" style="border-radius:12px">${A.icon} ${esc(tr(A.name, A.nameEn))}<small>${esc(tr(A.area, A.areaEn))}</small></button><span class="arrow">→</span><button class="isl chip" data-island="${B.id}" style="border-radius:12px">${B.icon} ${esc(tr(B.name, B.nameEn))}<small>${esc(tr(B.area, B.areaEn))}</small></button></div>
+  <p class="sum">${esc(tr(f.note, f.noteEn))}</p>
+  <div class="kv"><span>${tr('證據等級', 'Evidence')}</span><b>${lineSvg(f.evidence)}${tr(...EVID[f.evidence])}</b></div>
+  <div class="kv"><span>${tr('搬運物', 'Cargo')}</span><b><img src="${CARGO_IMG[f.cargo]}" alt="">${esc(tr(f.cargoName, f.cargoEn))}</b></div>
+  <div class="kv"><span>${tr('走路的角色', 'Walkers')}</span><b>${f.roles.map(roleName).join(tr('、', ', '))} × ${f.walkers}</b></div>
+  <div class="kv"><span>${tr('路線長度', 'Route length')}</span><b>${f.route.len.toFixed(1)} ${tr('格', 'units')}</b></div>
+  ${w ? `<div class="note">${tr('你點到的是一位', 'You picked a')} <b>${esc(roleName(w.role))}</b>${tr('，', ', ')}${w.carrying ? tr(`正在把${f.cargoName}從${islName(f.from)}搬到${islName(f.to)}。`, `carrying ${f.cargoEn} to ${islName(f.to)}.`) : tr(`剛交接完，正走回${islName(f.from)}。`, `heading back to ${islName(f.from)}.`)}</div>` : ''}`;
+}
+function openCard(html) {
+  const card = $('#card'); $('#cardBody').innerHTML = html; card.classList.remove('closed'); card.scrollTop = 0;
+  S.cardOpen = true; S.panelsAt = 0;
+  if (S.mobile) setSidebar(false);
+}
+function closeCard() { $('#card').classList.add('closed'); S.cardOpen = false; S.panelsAt = 0; S.dirty = true; }
+function setSidebar(open) {
+  S.sidebarOpen = open; $('#sidebar').classList.toggle('closed', !open);
+  $('#btnList').setAttribute('aria-pressed', String(open));
+  $('#log').classList.toggle('wide', !open || S.mobile);
+  if (open && S.mobile && S.cardOpen) closeCard();
+  S.panelsAt = 0; S.dirty = true;
+}
+S.tab = 'topics';
+function renderSidebar() {
+  const list = $('#list'); if (!list) return;
+  const q = $('#search').value.trim().toLowerCase(), sid = islandOfSel(), sf = flowOfSel();
+  const match = (...xs) => !q || xs.join(' ').toLowerCase().includes(q);
+  let html = '';
+  if (S.tab === 'topics') {
+    for (const isl of DATA.islands) {
+      const islHit = match(isl.name, isl.nameEn, isl.area, isl.areaEn, isl.landmark, isl.landmarkEn);
+      const items = isl.items.filter(it => islHit || match(it.name, it.nameEn, it.desc, it.descEn, it.facts.join(' '), (it.factsEn || []).join(' ')));
+      if (q && !items.length) continue;
+      html += `<details class="topic${isl.id === sid ? ' active' : ''}" data-island="${isl.id}"${q || isl.id === sid ? ' open' : ''}>
+        <summary><span class="no">${isl.no}</span><span>${isl.icon} ${esc(tr(isl.name, isl.nameEn))} <small>${esc(tr(isl.area, isl.areaEn))}</small></span><span class="cnt">${items.length}</span></summary>
+        <ol>${items.map(it => `<li><button class="item-btn${isLit(it.id) ? ' lit' : ''}${S.sel?.kind === 'item' && S.sel.id === it.id ? ' active' : ''}" data-item="${it.id}"><span class="cn">${CIRC[it.no]}</span><span class="nm">${esc(tr(it.name, it.nameEn))}</span><span class="ph">${phaseText(it.phase)}</span></button></li>`).join('')}</ol></details>`;
+    }
+  } else {
+    for (const f of DATA.flows) {
+      if (!match(f.title, f.titleEn, f.cargoName, f.cargoEn, islName(f.from), islName(f.to), ISL.get(f.from).name, ISL.get(f.to).name)) continue;
+      html += `<button class="flow-row${sf === f ? ' active' : ''}" data-flow="${f.id}"><img src="${CARGO_IMG[f.cargo]}" alt=""><span class="ft">${esc(islName(f.from))} → ${esc(islName(f.to))}<small>${esc(tr(f.title, f.titleEn))}${SEP}${esc(tr(f.cargoName, f.cargoEn))}${SEP}${tr(...EVID[f.evidence])}</small></span>${lineSvg(f.evidence, 26)}</button>`;
+    }
+  }
+  list.innerHTML = html || `<div class="empty">${tr('找不到符合的項目', 'No matches')}</div>`;
+}
+function refreshLit() {
+  document.querySelectorAll('.item-btn[data-item]').forEach(b => b.classList.toggle('lit', isLit(b.dataset.item)));
+  pins.forEach(p => p.el.classList.toggle('lit', isLit(p.it.id)));
+}
+function renderLog() {
+  const rows = S.logs.filter(l => S.logFilter === 'all' || l.flow === S.logFilter).slice(0, 40);
+  $('#logList').innerHTML = rows.map(l => `<li><time>${fmtTime(l.t)}</time><span class="ev ${l.type}">${l.type.toUpperCase()}</span><span>${esc(l.text)}</span></li>`).join('')
+    || `<li class="muted">${tr('等待小人到站…', 'Waiting for the first arrival…')}</li>`;
+  S.logDirty = false;
+}
+
+/* =====================================================================
+   介面事件
+   ===================================================================== */
+function setToggle(name, val) {
+  S[name] = val;
+  const btn = document.querySelector(`[data-toggle="${name}"]`); if (btn) btn.setAttribute('aria-pressed', String(val));
+  if (name === 'flows') updateFlowVis();
+  if (name === 'paused' && btn) btn.querySelector('.ic').textContent = val ? '▶' : '❚❚';
+  if (name === 'aerial') {
+    controls.minPolarAngle = val ? 0 : THREE.MathUtils.degToRad(25);
+    if (val) startFlight(controls.target.clone().add(AERIAL), controls.target.clone());
+    else panorama(false);
+  }
+  if (name === 'log') { $('#log').classList.toggle('closed', !val); if (val) renderLog(); }
+  S.panelsAt = 0; S.dirty = true;
+}
+function orbit(dAz, dPol) {
+  const off = camera.position.clone().sub(controls.target), sp = new THREE.Spherical().setFromVector3(off);
+  sp.theta += dAz; sp.phi = clamp(sp.phi + dPol, controls.minPolarAngle + .001, controls.maxPolarAngle - .001);
+  off.setFromSpherical(sp); camera.position.copy(controls.target).add(off); S.flight = null; controls.update(); S.dirty = true;
+}
+const HELP_KEY = 'ncuPolicyIsland.helpSeen';
+function showHelp() { $('#help').classList.remove('closed'); setTimeout(() => $('#helpOk').focus(), 50); }
+function hideHelp() { $('#help').classList.add('closed'); store.set(HELP_KEY, '1'); }
+function makeSheet(el) {
+  const h = el.querySelector('.handle'); let sy = 0, sh = 0, drag = false;
+  h.addEventListener('pointerdown', e => { if (!S.mobile) return; drag = true; sy = e.clientY; sh = el.getBoundingClientRect().height; h.setPointerCapture(e.pointerId); el.style.transition = 'none'; });
+  h.addEventListener('pointermove', e => { if (drag) el.style.height = clamp(sh + (sy - e.clientY), 90, window.innerHeight) + 'px'; });
+  const end = () => {
+    if (!drag) return; drag = false; el.style.transition = '';
+    const hh = el.getBoundingClientRect().height;
+    if (hh > window.innerHeight * .82) el.style.height = '100%';
+    else if (hh < 130) { el.style.height = ''; if (el.id === 'card') deselect(); else setSidebar(false); }
+    S.panelsAt = 0;
+  };
+  h.addEventListener('pointerup', end); h.addEventListener('pointercancel', end);
+}
+function buildUI() {
+  // 協作線篩選
+  $('#logFilter').innerHTML = `<option value="all">${tr('全部協作線', 'All flows')}</option>` + DATA.flows.map(f => `<option value="${f.id}">${esc(tr(f.title, f.titleEn))}</option>`).join('');
+  $('#logFilter').addEventListener('change', e => { S.logFilter = e.target.value; renderLog(); });
+  // 工具列
+  $('#btnHome').addEventListener('click', () => { deselect(); panorama(false); });
+  $('#btnList').addEventListener('click', () => setSidebar(!S.sidebarOpen));
+  $('#btnHelp').addEventListener('click', showHelp);
+  $('#helpOk').addEventListener('click', hideHelp);
+  $('#help').addEventListener('click', e => { if (e.target.id === 'help') hideHelp(); });
+  $('#cardClose').addEventListener('click', deselect);
+  $('#timeBtn').addEventListener('click', () => { const o = !$('#hud').classList.contains('open'); $('#hud').classList.toggle('open', o); $('#timeBtn').setAttribute('aria-expanded', String(o)); S.panelsAt = 0; });
+  // HUD
+  document.querySelectorAll('[data-time]').forEach(b => b.addEventListener('click', () => { S.minute = +b.dataset.time; S.lastClock = -1; applyTime(); S.dirty = true; }));
+  document.querySelectorAll('[data-toggle]').forEach(b => b.addEventListener('click', () => setToggle(b.dataset.toggle, !S[b.dataset.toggle])));
+  // 側欄
+  $('#search').addEventListener('input', renderSidebar);
+  document.querySelectorAll('[data-tab]').forEach(b => b.addEventListener('click', () => {
+    S.tab = b.dataset.tab; document.querySelectorAll('[data-tab]').forEach(x => x.setAttribute('aria-selected', String(x === b))); renderSidebar();
+  }));
+  const delegate = (root) => root.addEventListener('click', e => {
+    const it = e.target.closest('[data-item]'); if (it) return selectItem(it.dataset.item);
+    const fl = e.target.closest('[data-flow]'); if (fl) return selectFlow(fl.dataset.flow);
+    const sm = e.target.closest('summary'); if (sm) { const d = sm.parentElement; setTimeout(() => selectIsland(d.dataset.island), 0); return; }
+    const is = e.target.closest('[data-island]'); if (is && is.tagName === 'BUTTON') return selectIsland(is.dataset.island);
+  });
+  delegate($('#list')); delegate($('#cardBody'));
+  makeSheet($('#sidebar')); makeSheet($('#card'));
+  // 點擊場景：指標移動 ≤ 6px 才 raycast；一按下就取消飛行
+  let down = null;
+  renderer.domElement.addEventListener('pointerdown', e => { down = { x: e.clientX, y: e.clientY }; S.flight = null; });
+  renderer.domElement.addEventListener('pointerup', e => { if (down && e.button === 0 && !e.shiftKey && Math.hypot(e.clientX - down.x, e.clientY - down.y) <= 6) pickAt(e); down = null; });
+  // 鍵盤
+  window.addEventListener('keydown', e => {
+    if (e.target.matches && e.target.matches('input, textarea, select')) { if (e.key === 'Escape') e.target.blur(); return; }
+    const step = .08;
+    if (e.key === 'Escape') { if (!$('#help').classList.contains('closed')) hideHelp(); else deselect(); }
+    else if (e.key === 'ArrowLeft') { orbit(-step, 0); e.preventDefault(); }
+    else if (e.key === 'ArrowRight') { orbit(step, 0); e.preventDefault(); }
+    else if (e.key === 'ArrowUp') { orbit(0, -step * .6); e.preventDefault(); }
+    else if (e.key === 'ArrowDown') { orbit(0, step * .6); e.preventDefault(); }
+  });
+  // 尺寸
+  new ResizeObserver(() => {
+    const w = stage.clientWidth, h = stage.clientHeight; if (!w || !h) return;
+    const was = S.mobile; S.mobile = isMobile();
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, S.mobile ? 1.4 : 1.75));
+    renderer.setSize(w, h); labelRenderer.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix();
+    if (was !== S.mobile) { $('#sidebar').style.height = ''; $('#card').style.height = ''; setSidebar(!S.mobile); }
+    S.panelsAt = 0; S.dirty = true;
+  }).observe(stage);
+  setSidebar(S.sidebarOpen);
+  renderSidebar();
+}
+function applyI18n() {
+  document.documentElement.lang = LANG === 'en' ? 'en' : 'zh-Hant';
+  document.querySelectorAll('.cityName').forEach(e => e.textContent = tr(DATA.city, DATA.cityEn));
+  document.title = tr(`${DATA.city}政策島`, `${DATA.cityEn} Policy Island`);
+  if (LANG === 'en') {
+    document.querySelectorAll('[data-en]').forEach(e => e.textContent = e.dataset.en);
+    document.querySelectorAll('[data-en-ph]').forEach(e => e.placeholder = e.dataset.enPh);
+  }
+  const ll = $('#langLink'); ll.textContent = LANG === 'en' ? '中文' : 'EN'; ll.href = LANG === 'en' ? location.pathname : '?lang=en';
+}
+
+/* =====================================================================
+   主迴圈：只在需要時 render
+   ===================================================================== */
+let last = performance.now(), lastLogRender = 0;
+function frame(now) {
+  requestAnimationFrame(frame);
+  const dt = Math.min((now - last) / 1000, .08); last = now;
+  const running = !S.paused && !S.reduced;
+  if (running) { S.minute = (S.minute + dt * 10) % 1440; S.simTime += dt; }
+  if (S.flight) {
+    const k = clamp((now - S.flight.t0) / 800, 0, 1), e = easeInOutCubic(k);
+    camera.position.lerpVectors(S.flight.from, S.flight.to, e); controls.target.lerpVectors(S.flight.fromT, S.flight.toT, e);
+    if (k >= 1) S.flight = null; S.dirty = true;
+  }
+  if (controls.update()) S.dirty = true;
+  if (!S.flight && clampPan()) S.dirty = true;
+  if (!running && !S.dirty) return;
+  if (running) {
+    applyTime(); updateClouds(dt);
+    waterMat.uniforms.uTime.value = sideMat.uniforms.uTime.value = flowShared.uTime.value = S.simTime;
+  }
+  updateWalkers(dt, running);
+  const camD = camera.position.distanceTo(controls.target), showSmall = camD < 26;
+  for (const m of smallMeshes) m.visible = showSmall;
+  flowShared.uThick.value = clamp((camD - 10) * .0032, 0, .08); // 拉遠時加粗，維持可讀
+  $('#compassRose').setAttribute('transform', `rotate(${THREE.MathUtils.radToDeg(controls.getAzimuthalAngle()).toFixed(1)})`);
+  renderer.render(scene, camera); labelRenderer.render(scene, camera); layoutLabels(now);
+  if (S.logDirty && S.log && now - lastLogRender > 500) { lastLogRender = now; renderLog(); }
+  S.dirty = false;
+}
+
+/* =====================================================================
+   啟動
+   ===================================================================== */
+const tick = () => new Promise(r => requestAnimationFrame(() => r()));
+function step(msg, pct) { $('#ldStep').textContent = msg; $('#ldBar').style.width = pct + '%'; }
+let booted = false;
+function showError(e) {
+  console.error(e);
+  $('#ldMsg').textContent = tr('載入失敗：無法建立 3D 場景', 'Failed to build the 3D scene');
+  const err = $('#ldErr'); err.hidden = false;
+  err.textContent = (e && e.message ? e.message : String(e)) + '\n\n' + tr('請確認：瀏覽器支援 WebGL，且可以連到 cdn.jsdelivr.net。', 'Check that your browser supports WebGL and can reach cdn.jsdelivr.net.');
+  $('#loading').classList.remove('done');
+}
+async function boot() {
+  applyI18n();
+  try {
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    S.reduced = mq.matches;
+    const onMq = e => { S.reduced = e.matches; if (flowShared) flowShared.uStatic.value = S.reduced ? 1 : 0; S.dirty = true; };
+    mq.addEventListener ? mq.addEventListener('change', onMq) : mq.addListener(onMq);
+  } catch (e) { /* 舊瀏覽器略過 */ }
+  const timeout = setTimeout(() => { if (!booted) showError(new Error(tr('載入逾時（25 秒）', 'Loading timed out (25 s)'))); }, 25000);
+  try {
+    step(tr('載入 three.js…', 'Loading three.js…'), 8); await loadLibs(); clearTimeout(timeout); // 逾時只用來偵測 CDN 卡住
+    step(tr('建立場景骨架…', 'Setting up the scene…'), 18); await tick();
+    makeKinds(); initRenderer(); initKeyframes(); initEnvironment(); initWalkerTemps();
+    OFF_ISL = new THREE.Vector3(2.75, 5.3, 6.2); OFF_ITEM = new THREE.Vector3(1.6, 2.5, 3.2); AERIAL = new THREE.Vector3(.01, 42, 6);
+    ray = new THREE.Raycaster(); ndc = new THREE.Vector2();
+    step(tr('拼接六角島與百花川…', 'Joining hex islands…'), 30); await tick();
+    buildIslands(); buildNetwork(); buildBridges();
+    step(tr('蓋中大地標與政策模型…', 'Building landmarks…'), 44); await tick();
+    buildIslandContents();
+    step(tr('鋪設丘陵、林帶與遠山…', 'Growing hills and forests…'), 58); await tick();
+    buildTerrain(); buildTrees(); buildMountains(); buildClouds(); buildDistant();
+    step(tr('組裝零件庫…', 'Assembling the kit…'), 72); await tick();
+    buildKit(); buildPools();
+    step(tr('小人與協作線上工…', 'Walkers clocking in…'), 84); await tick();
+    buildCargoIcons(); buildRoutes(); buildWalkers(); buildFlows(); buildLabels(); buildPins();
+    step(tr('準備介面…', 'Preparing the interface…'), 94); await tick();
+    buildUI(); applyTime(); panorama(true);
+    S.dirty = true; requestAnimationFrame(frame);
+    booted = true; clearTimeout(timeout);
+    step('', 100);
+    setTimeout(() => $('#loading').classList.add('done'), 300);
+    if (!store.get(HELP_KEY)) setTimeout(showHelp, 900);
+  } catch (e) { clearTimeout(timeout); showError(e); }
+}
+window.addEventListener('error', e => { if (!booted) showError(e.error || e.message); });
+boot();
+</script>
+</body>
+</html>
